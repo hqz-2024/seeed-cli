@@ -1,0 +1,11 @@
+name = "seeed-cli"
+version = "0.0.1"
+desc = "你的开发小伙伴。"
+
+[provider]
+
+# 阿里百炼
+[provider.BaiLian]
+model = "qwen3.6-flash" 
+apiKey = ""
+

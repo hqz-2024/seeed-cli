@@ -9,7 +9,7 @@
 ## 功能点
 1. 项目安全扫描             `sc safe-scan`
 2. 项目代码质量检查          `sc quality`
-3. 项目架构分析              `sc framework`
+3. 项目架构分析              `sc frame`
 4. 项目 Skill 生成          `sc gen-ckill`
 5. 根据提交历史生成日报       `sc gen-daily`
 6. 接口文档生成              `sc gen-api-doc`
@@ -26,8 +26,10 @@ cli 库  `cli.urfave`
 
 
 ## 安装
-ing...
 
+``` sh
+curl -fsSL https://raw.githubusercontent.com/wangzongmming/seeed-cli/main/install.sh | bash
+```
 
 ## 快速开始
 ing...
