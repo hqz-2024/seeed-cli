@@ -31,6 +31,14 @@
 curl -fsSL https://raw.githubusercontent.com/wangzongming/seeed-cli/refs/heads/main/install.sh | bash
 ```
   
+## 百炼 ak 获取教程
+
+1. 打开 https://bailian.console.aliyun.com/cn-beijing?tab=model#/api-key 如果没有注册就注册登录
+2. 点击右上角 创建 API Key
+3. 复制您的 api key 并且执行 `seeed-cli set-ak BaiLian xxx(替换为您的ak)`
+
+ps： 注意您的账户不能是欠费状态，欠费的账号无法调用大模型。
+
 ## 开发环境
 
 ``` shell
