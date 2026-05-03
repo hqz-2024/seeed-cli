@@ -1,4 +1,4 @@
-name = "seeed-cli"
+name = "seeed-cli" 
 version = "0.0.1"
 desc = "源于 AI，归于 AI，所有输出均由 AI 生成，建议将安全或者质量评测结果再次交给您的 AI 来处理。"
 
