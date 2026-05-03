@@ -38,7 +38,19 @@ var _commands = []*cli.Command{
 		Aliases:  []string{"ss"},
 		Action: commands.HandleSafeScan, 
 	},
-
+	{ 
+		Name: "quality",
+		Usage: "代码质量评测",
+		Aliases:  []string{"q"},
+		Action: commands.HandleQuality, 
+	},
+	{
+		Name:    "gen-commit",
+		Usage:   "根据暂存区生成带类型与图标的 commit 说明。(请先进行 git add 后在执行 seed-cli gen-commit)",
+		Aliases: []string{"gc"},
+		Action:  commands.HandleGenCommit,
+	},
+	
 	{ 
 		Name: "clear",
 		Usage: "清除所有配置", 

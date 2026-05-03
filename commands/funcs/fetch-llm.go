@@ -1,56 +1,69 @@
 package funcs
 
 import (
-	"context" 
 	"fmt"
-	"time"
+	"context"
+	"strings"
+
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 
 	"seeed-cli/commands/configs"
 )
- 
 
-func FetchLLM(text string, model string) string {
+func FetchLLMStream(ctx context.Context, text string, llmModel string, onDelta func(string)) (string, error) {
 	cfg, err := configs.LoadConfig()
-	if err != nil{  
-		panic(err)
-		return ""
+	if err != nil {
+		return "", err
 	}
 
 	ak, err := configs.GetAK("BaiLian")
-	if err != nil{  
-		panic(err)
-		return ""
+	if err != nil {
+		return "", err
+	}
+	if ak == "" {
+		return "", fmt.Errorf("\n\n[ERROR] api key is not set, please set api key first.\n\n")
 	}
 
-	if model == "" {	 
-		model = cfg.Provider.BaiLian.Model
+	if llmModel == "" {
+		llmModel = cfg.Provider.BaiLian.Model
 	}
 
-	start := time.Now()
-
-	client := openai.NewClient( 
+	client := openai.NewClient(
 		option.WithAPIKey(ak),
 		option.WithBaseURL("https://dashscope.aliyuncs.com/compatible-mode/v1"),
 	)
-	chatCompletion, err := client.Chat.Completions.New(
-		context.TODO(), openai.ChatCompletionNewParams{
-			Messages: []openai.ChatCompletionMessageParamUnion{
-				openai.UserMessage(text),
-			}, 
-			Model: model,
-			
+	stream := client.Chat.Completions.NewStreaming(ctx, openai.ChatCompletionNewParams{
+		Messages: []openai.ChatCompletionMessageParamUnion{
+			openai.UserMessage(text),
 		},
-	)
+		Model: llmModel,
+	})
+	defer stream.Close()
 
-	if err != nil {
-		panic(err.Error())
+	var b strings.Builder
+	for stream.Next() {
+		ch := stream.Current()
+		for _, c := range ch.Choices {
+			if c.Delta.Content == "" {
+				continue
+			}
+			b.WriteString(c.Delta.Content)
+			if onDelta != nil {
+				onDelta(c.Delta.Content)
+			}
+		}
 	}
+	if err := stream.Err(); err != nil {
+		return b.String(), err
+	}
+	return b.String(), nil
+}
 
-	fmt.Println("用户: ", text) 
-	fmt.Println("AI: ", chatCompletion.Choices[0].Message.Content)  
-
-	fmt.Println("LLM 耗时：", time.Since(start))
-	return "1111"
+func FetchLLM(text string, llmModel string) string {
+	out, err := FetchLLMStream(context.TODO(), text, llmModel, nil)
+	if err != nil {
+		panic(err)
+	}
+	return out
 }

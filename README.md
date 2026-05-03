@@ -7,16 +7,22 @@
 
 
 ## 功能点
-1. 项目安全扫描             `sc safe-scan`
-2. 项目代码质量检查          `sc quality`
-3. 项目架构分析              `sc frame`
-4. 项目 Skill 生成          `sc gen-ckill`
-5. 根据提交历史生成日报       `sc gen-daily`
-6. 接口文档生成              `sc gen-api-doc`
-7. 代码出处分析              `sc who`
-8. code push（AI 帮你生成 commit 描素，并且 检查 commit 是否有问题）  `sc gen-daily`
-9. skill 扩展                
-10. 炫酷 ai 聊天             
+
+| #   | 功能                                                              | 命令             | 完成 |
+| --- | ----------------------------------------------------------------- | ---------------- | ---- |
+| 1   | 项目安全扫描                                                      | `sc safe-scan`   | ✓    |
+| 2   | 项目代码质量检查                                                  | `sc quality`     | ✓    |
+| 3   | 项目架构分析                                                      | `sc frame`       | ✓    |
+| 4   | 项目 Skill 生成                                                   | `sc gen-skill`   |      |
+| 5   | 根据提交历史生成日报                                              | `sc gen-daily`   |      |
+| 5   | 根据修改文件生成提交的 commit 说明(git commit 的描述)                   | `sc gen-commit`  |      |
+| 6   | 接口文档生成                                                      | `sc gen-api-doc` |      |
+| 7   | 代码出处分析                                                      | `sc who`         |      |
+| 8   | code push（AI 帮你生成 commit 描素，并且 检查 commit 是否有问题） | `sc gen-daily`   |      |
+| 9   | skill 扩展                                                        | —                |      |
+| 10  | 炫酷 ai 聊天                                                      | —                |      |
+| 11  | 多端兼容(windows、linux、macos)                                   | —                | ✓    |
+
 
 
 ## 技术栈
@@ -39,5 +45,5 @@ ing...
 
 ``` shell
 go mod tidy
-make dev
+make install
 ```
