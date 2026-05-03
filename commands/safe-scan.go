@@ -25,7 +25,7 @@ func HandleSafeScan(ctx context.Context, cmd *cli.Command) error {
 		return err
 	}
 
-	return runRepUI(ctx, "SEEED-CLI SECURITY SCAN", pwd, total, runSafeScanWork)
+	return runRepUI(ctx, "SEEED-CLI SECURITY SCAN", pwd, total, false, runSafeScanWork)
 }
 
 // runSafeScanWork：与旧版逻辑一致，按 512KB 批次调用 RunLLMStream，最后落盘聚合 Markdown。

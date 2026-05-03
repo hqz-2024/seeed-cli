@@ -45,7 +45,7 @@ func HandleFrame(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return err
 	}
-	return runRepUI(ctx, "SEEED-CLI FRAME / ARCH", pwd, 0, runFrameWork)
+	return runRepUI(ctx, "SEEED-CLI FRAME / ARCH", pwd, 0, false, runFrameWork)
 }
 
 // runFrameWork：采集语料、流式生成报告；写入磁盘的为 LLM 原始 Markdown（保留 mermaid 围栏供 IDE 渲染）。

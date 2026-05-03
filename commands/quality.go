@@ -23,7 +23,7 @@ func HandleQuality(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return err
 	}
-	return runRepUI(ctx, "SEEED-CLI CODE QUALITY", pwd, total, runQualityWork)
+	return runRepUI(ctx, "SEEED-CLI CODE QUALITY", pwd, total, false, runQualityWork)
 }
 
 // runQualityWork：按 512KB 批次调用 RunLLMStream，聚合 Markdown 落盘。

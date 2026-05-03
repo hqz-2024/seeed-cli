@@ -68,6 +68,7 @@ type repModel struct {
 	headerTitle string
 	pwd         string
 	total       int
+	plainLLM    bool // true：LLM 全文按纯文本换行展示（不跑 glamour），便于复制到飞书等
 	content     string
 	ready       bool
 	finished    bool
@@ -77,8 +78,9 @@ type repModel struct {
 	spin        spinner.Model
 	scanCtx     context.Context
 	llmStream   string
-	work        func(*repModel)
-	lastSave    string // work 结束前写入，供 repFinishedMsg 带给 UI
+	work         func(*repModel)
+	lastSave     string // work 结束前写入，供 repFinishedMsg 带给 UI
+	printOnQuit  string // 非空时 tea 退出后打印一行（如 gen-commit 供管道复制）
 }
 
 func (m *repModel) SendLog(line string) {
@@ -188,11 +190,15 @@ func (m *repModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if vw < 40 {
 				vw = 100
 			}
-			out, gerr := glamourRenderForViewport(msg.full, vw)
-			if gerr != nil {
-				m.content += logWarn.Render(gerr.Error()) + "\n"
+			if m.plainLLM {
+				m.content += lipgloss.NewStyle().Foreground(lipgloss.Color("250")).Width(vw).Render(strings.TrimSpace(msg.full)) + "\n"
 			} else {
-				m.content += out + "\n"
+				out, gerr := glamourRenderForViewport(msg.full, vw)
+				if gerr != nil {
+					m.content += logWarn.Render(gerr.Error()) + "\n"
+				} else {
+					m.content += out + "\n"
+				}
 			}
 		}
 		m.syncViewport()
@@ -259,11 +265,12 @@ func (m *repModel) View() tea.View {
 
 // runRepUI：启动 tea Program；pwd/total 供 work 使用（如安全扫描进度分母）。
 
-func runRepUI(ctx context.Context, headerTitle string, pwd string, total int, work func(*repModel)) error {
+func runRepUI(ctx context.Context, headerTitle string, pwd string, total int, plainLLM bool, work func(*repModel)) error {
 	m := &repModel{
 		headerTitle: headerTitle,
 		pwd:         pwd,
 		total:       total,
+		plainLLM:    plainLLM,
 		scanCtx:     ctx,
 		work:        work,
 		spin: spinner.New(
@@ -274,5 +281,8 @@ func runRepUI(ctx context.Context, headerTitle string, pwd string, total int, wo
 	p := tea.NewProgram(m)
 	m.prog = p
 	_, err := p.Run()
+	if s := strings.TrimSpace(m.printOnQuit); s != "" {
+		fmt.Println(s)
+	}
 	return err
 }
