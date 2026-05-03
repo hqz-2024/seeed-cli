@@ -36,28 +36,35 @@ func GetConfigPath() string{
 }
 
 
+// defaultConfig 首次运行时写入用户目录的默认 TOML 内容
+func defaultConfig() Config {
+	return Config{
+		Name:    "seeed-cli",
+		Version: "0.0.1",
+		Desc:    "源于 AI，归于 AI，所有输出均由 AI 生成，建议将安全或者质量评测结果再次交给您的 AI 来处理。",
+		Provider: Provider{
+			BaiLian: LLMConfig{
+				Model:  "qwen3.6-flash",
+				ApiKey: "",
+			},
+		},
+	}
+}
+
 /**
  * 初始化配置文件
  */
 
-func Init() error { 
-	path := GetConfigPath()  
+func Init() error {
+	path := GetConfigPath()
 
 	// 不存在文件时需要创建
-	if _, err := os.Stat(path); os.IsNotExist(err){
-		os.Mkdir(filepath.Dir(path), 0755)
-
-		// 默认配置
-		var cfg Config 
-		initConfigPath := "config.toml"
-
-		_, err := toml.DecodeFile(initConfigPath, &cfg)
-		if err != nil {
-			fmt.Println("初始化失败！！！")
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 			return err
 		}
-		 
-		SaveConfig(path, &cfg)
+		cfg := defaultConfig()
+		return SaveConfig(path, &cfg)
 	}
 	return nil
 }
