@@ -5,7 +5,7 @@ set -e
 # ===== 基本信息 =====
 REPO="wangzongming/seeed-cli"
 VERSION="latest"
-BINARY_NAME="frame"
+BINARY_NAME="seeed-cli"
 
 # ===== 检测系统 =====
 OS="$(uname -s)"
