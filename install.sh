@@ -34,11 +34,15 @@ fi
 
 echo "Downloading ${FILE_NAME}..."
 
+# 下载到临时文件：当前目录下若已有同名目录 ~/seeed-cli（配置目录）会与 -o seeed-cli 冲突
+TMP_FILE="$(mktemp "${TMPDIR:-/tmp}/seeed-cli-install.XXXXXX")"
+trap 'rm -f "$TMP_FILE"' EXIT
+
 # ===== 下载（-f：HTTP 错误时失败，避免把 404 正文当二进制安装）=====
-curl -fL "$DOWNLOAD_URL" -o "$BINARY_NAME"
+curl -fL "$DOWNLOAD_URL" -o "$TMP_FILE"
 
 # ===== 加权限 =====
-chmod +x "$BINARY_NAME"
+chmod +x "$TMP_FILE"
 
 # ===== 安装路径 =====
 INSTALL_DIR="/usr/local/bin"
@@ -47,10 +51,11 @@ echo "Installing to ${INSTALL_DIR}..."
 
 # ===== 移动 =====
 if [ -w "$INSTALL_DIR" ]; then
-  mv "$BINARY_NAME" "$INSTALL_DIR/$BINARY_NAME"
+  mv "$TMP_FILE" "$INSTALL_DIR/$BINARY_NAME"
 else
-  sudo mv "$BINARY_NAME" "$INSTALL_DIR/$BINARY_NAME"
+  sudo mv "$TMP_FILE" "$INSTALL_DIR/$BINARY_NAME"
 fi
+trap - EXIT
 
 echo ""
 echo "  ███████╗███████╗███████╗███████╗██████╗       ██████╗██╗     ██╗"
