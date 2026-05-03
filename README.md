@@ -27,8 +27,8 @@
 
 ## 安装
 
-``` sh
-curl -fsSL https://github.com/wangzongming/seeed-cli/blob/main/install.sh | bash
+``` sh 
+curl -fsSL https://raw.githubusercontent.com/wangzongming/seeed-cli/refs/heads/main/install.sh | bash
 ```
   
 ## 开发环境

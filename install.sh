@@ -25,12 +25,17 @@ esac
 
 FILE_NAME="${BINARY_NAME}-${OS}-${ARCH}"
 
-DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${VERSION}/${FILE_NAME}"
+# latest 必须用 releases/latest/download/，不能用 releases/download/latest/（后者要求 tag 名就叫 latest）
+if [ "$VERSION" = "latest" ]; then
+  DOWNLOAD_URL="https://github.com/${REPO}/releases/latest/download/${FILE_NAME}"
+else
+  DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${VERSION}/${FILE_NAME}"
+fi
 
 echo "Downloading ${FILE_NAME}..."
 
-# ===== 下载 =====
-curl -L "$DOWNLOAD_URL" -o "$BINARY_NAME"
+# ===== 下载（-f：HTTP 错误时失败，避免把 404 正文当二进制安装）=====
+curl -fL "$DOWNLOAD_URL" -o "$BINARY_NAME"
 
 # ===== 加权限 =====
 chmod +x "$BINARY_NAME"
