@@ -15,6 +15,7 @@ var IgnoreDir = map[string]struct{}{
 	".vscode": {},
 	".idea":   {},
 	".cursor": {},
+	".pio": {},
 
 	"node_modules":  {},
 	"dist":          {},
