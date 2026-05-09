@@ -26,6 +26,10 @@ install:
 # 	安装后确认是否安装成功
 # 	ls $(go env GOPATH)/bin
 
+# 如命令在 go env GOPATH 目录下，则可以直接执行，但是无法执行，请将 go env GOPATH 目录添加到环境变量 PATH 中
+# echo 'export PATH="$(go env GOPATH)/bin:$PATH"' >> ~/.zshrc
+# source ~/.zshrc
+
 
 clean:
 	rm -rf ./bin
