@@ -1,5 +1,7 @@
 # 程序员的 AI 小伙伴 - seeed-cli
 
+![help](./imgs/help.png) 
+
 ## 是什么
 
 `seeed-cli` 在项目里统一调度 AI：把任务写成命令，复用同一套上下文，少做「每次从头讲一遍」的重复沟通。
@@ -54,4 +56,10 @@ make install
 
 
 - **seeed** - https://www.seeedstudio.com/
+
+## 预览
+
+![safe-loading](./imgs/safe-loading.png)
+![safe-res](./imgs/safe-res.png)
+![who-res](./imgs/who-res.png)
 
