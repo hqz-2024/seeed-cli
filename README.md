@@ -24,9 +24,57 @@
 | 6   | 接口文档生成                                          | `sc gen-api-doc`  | ✓    |
 | 7   | 代码出处分析                                          | `sc who`          | ✓    |
 | 8   | 多端兼容(windows、linux、macos)                       | —                 | ✓    |
-| 9   | skill 扩展                                            | —                 | x    |
-| 10  | 炫酷 ai 聊天                                          | —                 | x    |
-| 11  | 想象中...                                             | —                 | -    |
+| 9   | AI skills 扫描（场景/触发 + 质量评分 + 缺口分析）     | `sc skills-scan`  | ✓    |
+| 10  | 跨工具 skills 同步（生成对应 SKILL.md 文件包）        | `sc skills-sync`  | ✓    |
+| 11  | 炫酷 ai 聊天                                          | —                 | x    |
+| 12  | 想象中...                                             | —                 | -    |
+
+
+## AI Skills 管理
+
+围绕 Cursor / Claude Code / Windsurf / Augment 这类 vibe coding 工具的 `SKILL.md` 协议，提供两条命令：
+
+### skills-scan：扫描 + 评分 + 缺口分析
+
+从项目根**递归全扫**所有文件名严格为 `SKILL.md`（大小写敏感）的文件，按所在路径推断来源工具（`.cursor/skills/` → cursor，`.claude/skills/` → claude，`.windsurf/skills/` → windsurf，`.augment/skills/` → augment，其余归为 generic），再由 LLM 输出四章报告：总览表、按工具分组、质量评分、缺口分析。
+
+``` sh
+seeed-cli skills-scan
+# 别名
+seeed-cli skills
+seeed-cli sk
+```
+
+报告落盘：`<pwd>/seeed-cli/skills-YYYY-MM-DD_HH_mm_ss.md`，附录含结构化的 `scores` / `gaps` JSON。
+
+### skills-sync：跨工具同步 SKILL.md 文件包
+
+选择源 skill 与目标工具，按目标工具的 frontmatter 方言重写并写入目标目录（如 `.claude/skills/<name>/SKILL.md`）。被剔除的工具专属字段（Cursor 的 `paths`、Claude 的 `allowed-tools`）会以引用块形式追加到正文顶部，避免信息丢失。
+
+**交互模式**（多选源 skill + 单选目标工具）：
+
+``` sh
+seeed-cli skills-sync
+# 别名
+seeed-cli sync
+```
+
+操作键：`↑/↓` 移动 · `Space` 选/取消 · `a` 全选 · `Enter` 确认 · `q` 取消。
+
+**非交互模式**（CI / 脚本场景）：
+
+``` sh
+seeed-cli skills-sync --target claude --skills deploy-staging,api-review --overwrite -y
+```
+
+| flag | 说明 |
+|------|------|
+| `--target`    | 目标工具：`cursor` \| `claude` \| `windsurf` \| `augment` |
+| `--skills`    | 逗号分隔的源 skill 名（缺省进入交互式多选） |
+| `--overwrite` | 目标文件已存在时是否覆盖（默认跳过并记入 Skipped） |
+| `--yes` / `-y`| 跳过确认提示 |
+
+同步结果落盘：`<pwd>/seeed-cli/skills-sync-YYYY-MM-DD_HH_mm_ss.md`，含「源 → 目标」映射表与 Written / Skipped / Failed 三段清单。
 
 
 ## 安装

@@ -54,7 +54,7 @@ func runFrameWork(m *repModel) {
 	m.SendLog(bootOKLine(fmt.Sprintf("workspace: %s", m.pwd)))
 
 	m.SendLog(bootWaitLine("collecting corpus…"))
-	corpus := collectFrameCorpus(m.pwd)
+	corpus := CollectFrameCorpus(m.pwd)
 	if len(corpus) > 200000 {
 		corpus = corpus[:200000] + "\n\n_[corpus truncated at 200KB]_\n"
 	}
@@ -98,8 +98,8 @@ func readFileCap(path string, maxBytes int) string {
 	return string(b[:maxBytes]) + "\n\n_[truncated]_\n"
 }
 
-// collectFrameCorpus：拼接清单文件、目录树与若干 main.go 片段，供 LLM 推断架构。
-func collectFrameCorpus(root string) string {
+// CollectFrameCorpus：拼接清单文件、目录树与若干 main.go 片段，供 LLM 推断架构（导出供 skills-scan 复用）。
+func CollectFrameCorpus(root string) string {
 	var sb strings.Builder
 	candidates := []string{
 		"go.mod", "go.work", "go.sum",

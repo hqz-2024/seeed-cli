@@ -73,8 +73,26 @@ var _commands = []*cli.Command{
 		Usage:   "启发式粗估源码「古法/手写」与「偏 AI 风格」占比（控制台比例条）",
 		Action:  commands.HandleWho,
 	},
+	{
+		Name:    "skills-scan",
+		Usage:   "扫描并分析 AI 工具 skills：场景/触发条件 + 质量评分 + 缺口分析",
+		Aliases: []string{"skills", "sk"},
+		Action:  commands.HandleSkills,
+	},
+	{
+		Name:    "skills-sync",
+		Usage:   "跨工具同步 skills：交互选择源 skill 与目标工具，生成 SKILL.md 包",
+		Aliases: []string{"sync"},
+		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "target", Usage: "目标工具：cursor|claude|windsurf|augment"},
+			&cli.StringFlag{Name: "skills", Usage: "逗号分隔的源 skill 名（缺省进入交互式多选）"},
+			&cli.BoolFlag{Name: "overwrite", Usage: "目标文件已存在时是否覆盖"},
+			&cli.BoolFlag{Name: "yes", Aliases: []string{"y"}, Usage: "跳过确认提示"},
+		},
+		Action: commands.HandleSkillsSync,
+	},
 
-	{ 
+	{
 		Name: "clear",
 		Usage: "清除所有配置", 
 		Action: commands.HandleClear, 
