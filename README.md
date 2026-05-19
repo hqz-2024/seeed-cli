@@ -24,19 +24,26 @@
 | 6   | 接口文档生成                                          | `sc gen-api-doc`  | ✓    |
 | 7   | 代码出处分析                                          | `sc who`          | ✓    |
 | 8   | 多端兼容(windows、linux、macos)                       | —                 | ✓    |
-| 9   | AI skills 扫描（场景/触发 + 质量评分 + 缺口分析）     | `sc skills-scan`  | ✓    |
+| 9   | AI skills/rules/workflows 扫描 + 评分 + 缺口分析      | `sc skills-scan`  | ✓    |
 | 10  | 跨工具 skills 同步（生成对应 SKILL.md 文件包）        | `sc skills-sync`  | ✓    |
-| 11  | 炫酷 ai 聊天                                          | —                 | x    |
-| 12  | 想象中...                                             | —                 | -    |
+| 11  | 联网拉取高星 skill（内嵌 Top-50 索引）                | `sc skills-pull`  | ✓    |
+| 12  | 炫酷 ai 聊天                                          | —                 | x    |
+| 13  | 想象中...                                             | —                 | -    |
 
 
 ## AI Skills 管理
 
-围绕 Cursor / Claude Code / Windsurf / Augment 这类 vibe coding 工具的 `SKILL.md` 协议，提供两条命令：
+围绕 Cursor / Claude Code / Windsurf / Augment 这类 vibe coding 工具的 `SKILL.md` 协议，提供三条命令：
 
 ### skills-scan：扫描 + 评分 + 缺口分析
 
-从项目根**递归全扫**所有文件名严格为 `SKILL.md`（大小写敏感）的文件，按所在路径推断来源工具（`.cursor/skills/` → cursor，`.claude/skills/` → claude，`.windsurf/skills/` → windsurf，`.augment/skills/` → augment，其余归为 generic），再由 LLM 输出四章报告：总览表、按工具分组、质量评分、缺口分析。
+只扫描 `.cursor/`、`.claude/`、`.windsurf/`、`.augment/` 四个工具根目录下的三类资源：
+
+- **skills**：`{tool}/skills/<name>/SKILL.md` —— 每个含 `SKILL.md` 的子文件夹算一个 skill 单元；
+- **rules**：`{tool}/rules/**/*.md` 或 `*.mdc` —— 递归收集；
+- **workflows**：`{tool}/workflows/**/*.md` —— 递归收集。
+
+来源工具按所在根目录确定（`.cursor/` → cursor，`.claude/` → claude，`.windsurf/` → windsurf，`.augment/` → augment）。LLM 输出四章报告：总览表、按工具分组（skills/rules/workflows 三栏）、质量评分、缺口分析。
 
 ``` sh
 seeed-cli skills-scan
@@ -75,6 +82,45 @@ seeed-cli skills-sync --target claude --skills deploy-staging,api-review --overw
 | `--yes` / `-y`| 跳过确认提示 |
 
 同步结果落盘：`<pwd>/seeed-cli/skills-sync-YYYY-MM-DD_HH_mm_ss.md`，含「源 → 目标」映射表与 Written / Skipped / Failed 三段清单。
+
+### skills-pull：联网拉取高星 skill
+
+内嵌一份 **Top-50 高星 skill 索引**（来自 `anthropics/skills`、`vercel-labs/agent-skills`、`ComposioHQ/awesome-claude-skills` 等仓库），按需从 GitHub 拉取 SKILL.md 及其 `references/` 与 `scripts/` 子目录，再按目标工具的方言安装到 `.cursor/.claude/.windsurf/.augment` 之一。
+
+**列表 / 搜索**（不下载）：
+
+``` sh
+seeed-cli skills-pull --list
+seeed-cli pull --search pdf --list
+seeed-cli pull --search github --list
+```
+
+**交互模式**（多选远程 skill + 单选目标工具）：
+
+``` sh
+seeed-cli skills-pull
+# 别名
+seeed-cli pull
+```
+
+操作键：`↑/↓` 移动 · `Space` 选/取消 · `a` 全选 · `Enter` 确认 · `q` 取消。
+
+**非交互模式**（CI / 脚本场景）：
+
+``` sh
+seeed-cli pull --ids anthropics/pdf,anthropics/docx --target claude -y --overwrite
+```
+
+| flag | 说明 |
+|------|------|
+| `--search`    | 在 `id` / `name` / `description` / `tags` 中模糊过滤 |
+| `--ids`       | 逗号分隔的 skill id 或 name（缺省进入交互式多选） |
+| `--target`    | 目标工具：`cursor` \| `claude` \| `windsurf` \| `augment` |
+| `--list` / `-l` | 只列出当前匹配的 skill 索引，不下载 |
+| `--overwrite` | 目标文件已存在时是否覆盖 |
+| `--yes` / `-y`| 跳过确认提示 |
+
+下载过程命中 GitHub API 速率限制时，可设置 `GITHUB_TOKEN` 环境变量提升配额；下载产物写入系统临时目录，安装完成后自动清理。安装结果复用 `skills-sync` 的报告：`<pwd>/seeed-cli/skills-sync-YYYY-MM-DD_HH_mm_ss.md`。
 
 
 ## 安装

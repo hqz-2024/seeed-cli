@@ -3,6 +3,7 @@ package funcs
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -90,6 +91,59 @@ func GetAdapter(target SkillSource) (DialectAdapter, error) {
 		return nil, fmt.Errorf("unsupported target: %s", target)
 	}
 	return baseAdapter{target: target}, nil
+}
+
+// PreferredRuleExt：目标工具的 rule 文件首选扩展名（Cursor 用 .mdc，其余 .md）。
+func PreferredRuleExt(target SkillSource) string {
+	if target == SourceCursor {
+		return ".mdc"
+	}
+	return ".md"
+}
+
+// TargetAssetRelPath：基于资源 kind 与 SubPath，计算落到目标工具下的相对路径（项目根相对）。
+//   - skill   → {tool}/skills/<name>/SKILL.md
+//   - rule    → {tool}/rules/<subpath 调整扩展名>
+//   - workflow→ {tool}/workflows/<subpath 扩展名归一为 .md>
+func TargetAssetRelPath(asset Skill, target SkillSource) string {
+	toolRoot, ok := SourceRootDirs[target]
+	if !ok {
+		return ""
+	}
+	switch asset.Kind {
+	case AssetKindSkill:
+		name := asset.SubPath
+		if name == "" {
+			name = asset.Name
+		}
+		return filepath.ToSlash(filepath.Join(toolRoot, AssetKindDirs[AssetKindSkill], name, "SKILL.md"))
+	case AssetKindRule:
+		sub := asset.SubPath
+		if sub == "" {
+			sub = asset.Name + PreferredRuleExt(target)
+		} else {
+			sub = stripExt(sub) + PreferredRuleExt(target)
+		}
+		return filepath.ToSlash(filepath.Join(toolRoot, AssetKindDirs[AssetKindRule], sub))
+	case AssetKindWorkflow:
+		sub := asset.SubPath
+		if sub == "" {
+			sub = asset.Name + ".md"
+		} else {
+			sub = stripExt(sub) + ".md"
+		}
+		return filepath.ToSlash(filepath.Join(toolRoot, AssetKindDirs[AssetKindWorkflow], sub))
+	}
+	return ""
+}
+
+// stripExt：去掉路径末段的扩展名（仅一层）。
+func stripExt(p string) string {
+	ext := filepath.Ext(p)
+	if ext == "" {
+		return p
+	}
+	return strings.TrimSuffix(p, ext)
 }
 
 // RenderSkillFile：把 frontmatter + body 序列化回 SKILL.md。

@@ -1,4 +1,4 @@
-// skills_scan：自项目根全工程递归扫描 SKILL.md（大小写敏感），并按路径推断来源工具。
+// skills_scan：限定扫描 .cursor/.claude/.windsurf/.augment 四个工具根目录下的 skills/、rules/、workflows/ 三类资源。
 package funcs
 
 import (
@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// SkillSource 标识 skill 来源工具。
+// SkillSource 标识资源来源工具。
 type SkillSource string
 
 const (
@@ -18,7 +18,31 @@ const (
 	SourceGeneric  SkillSource = "generic"
 )
 
-// SkillTargetDirMap：已知工具 → 目标写盘根目录（相对项目根）。
+// AssetKind：资源类别（skill / rule / workflow）。
+type AssetKind string
+
+const (
+	AssetKindSkill    AssetKind = "skill"
+	AssetKindRule     AssetKind = "rule"
+	AssetKindWorkflow AssetKind = "workflow"
+)
+
+// SourceRootDirs：来源工具 → 工具配置根目录（相对项目根）。
+var SourceRootDirs = map[SkillSource]string{
+	SourceCursor:   ".cursor",
+	SourceClaude:   ".claude",
+	SourceWindsurf: ".windsurf",
+	SourceAugment:  ".augment",
+}
+
+// AssetKindDirs：资源类别 → 子目录名（相对工具根）。
+var AssetKindDirs = map[AssetKind]string{
+	AssetKindSkill:    "skills",
+	AssetKindRule:     "rules",
+	AssetKindWorkflow: "workflows",
+}
+
+// SkillTargetDirMap：已知工具 → skills 写盘根目录（相对项目根），供 skills-sync 使用。
 var SkillTargetDirMap = map[SkillSource]string{
 	SourceCursor:   ".cursor/skills",
 	SourceClaude:   ".claude/skills",
@@ -26,20 +50,22 @@ var SkillTargetDirMap = map[SkillSource]string{
 	SourceAugment:  ".augment/skills",
 }
 
-// SourcePathMarkers：路径子串 → source。
+// SourcePathMarkers：路径子串 → source（仅作为兜底推断使用）。
 var SourcePathMarkers = map[string]SkillSource{
-	".cursor/skills/":   SourceCursor,
-	".claude/skills/":   SourceClaude,
-	".windsurf/skills/": SourceWindsurf,
-	".augment/skills/":  SourceAugment,
+	".cursor/":   SourceCursor,
+	".claude/":   SourceClaude,
+	".windsurf/": SourceWindsurf,
+	".augment/":  SourceAugment,
 }
 
-// Skill 表示一个被发现并解析后的 skill。
+// Skill 表示一个被发现并解析后的资源（skill / rule / workflow 通用）。
 type Skill struct {
 	Source      SkillSource
+	Kind        AssetKind
 	Name        string
 	Path        string
 	RelPath     string
+	SubPath     string // 相对 {tool}/{kindDir}/ 的路径；skill 为子文件夹名，rule/workflow 为含扩展名的相对文件路径
 	Description string
 	Trigger     string
 	Frontmatter map[string]string
@@ -82,52 +108,117 @@ type SkillAnalysisReport struct {
 
 // SkillSyncPlan 一次 skills-sync 的执行计划与结果。
 type SkillSyncPlan struct {
-	Sources    []Skill
-	Target     SkillSource
-	TargetRoot string
-	Overwrite  bool
-	Written    []string
-	Skipped    []string
-	Failed     []string
+	Sources     []Skill
+	Target      SkillSource
+	ProjectRoot string // 项目根绝对路径
+	TargetRoot  string // 目标工具的 skills/ 写盘绝对路径（仅供预览与兼容旧报告）
+	Overwrite   bool
+	Written     []string
+	Skipped     []string
+	Failed      []string
 }
 
-// ScanSkills：自项目根递归扫描整个工程，收集所有 SKILL.md（大小写敏感）。
+// ScanSkills：仅扫描 .cursor/.claude/.windsurf/.augment 四个工具根目录下的 skills/、rules/、workflows/ 三类资源。
 func ScanSkills(projectRoot string) (*SkillScanResult, error) {
 	res := &SkillScanResult{Root: projectRoot}
 	seen := map[SkillSource]struct{}{}
 
-	err := filepath.Walk(projectRoot, func(path string, info os.FileInfo, werr error) error {
-		if werr != nil {
-			return nil
+	for _, src := range []SkillSource{SourceCursor, SourceClaude, SourceWindsurf, SourceAugment} {
+		toolRoot := filepath.Join(projectRoot, SourceRootDirs[src])
+		if info, err := os.Stat(toolRoot); err != nil || !info.IsDir() {
+			continue
 		}
-		if info.IsDir() {
-			return nil
-		}
-		if filepath.Base(path) != "SKILL.md" {
-			return nil
-		}
-		if info.Size() > MaxFileSize {
-			res.SkippedNo = append(res.SkippedNo, path)
-			return nil
-		}
-		src := InferSourceFromPath(path)
-		sk, perr := ParseSkillFile(path, projectRoot, src)
-		if perr != nil || sk == nil {
-			res.SkippedNo = append(res.SkippedNo, path)
-			return nil
-		}
-		res.Skills = append(res.Skills, *sk)
-		seen[src] = struct{}{}
-		return nil
-	})
-	if err != nil {
-		return res, err
+		collectSkillFolders(filepath.Join(toolRoot, AssetKindDirs[AssetKindSkill]), projectRoot, src, res, seen)
+		collectMarkdownFiles(filepath.Join(toolRoot, AssetKindDirs[AssetKindRule]), projectRoot, src, AssetKindRule, res, seen)
+		collectMarkdownFiles(filepath.Join(toolRoot, AssetKindDirs[AssetKindWorkflow]), projectRoot, src, AssetKindWorkflow, res, seen)
 	}
 
 	for s := range seen {
 		res.Detected = append(res.Detected, s)
 	}
 	return res, nil
+}
+
+// collectSkillFolders：遍历 skills/ 下一层子文件夹，每个含 SKILL.md 的文件夹视为一个 skill 单元。
+func collectSkillFolders(skillsDir, projectRoot string, source SkillSource, res *SkillScanResult, seen map[SkillSource]struct{}) {
+	entries, err := os.ReadDir(skillsDir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		skillMD := filepath.Join(skillsDir, e.Name(), "SKILL.md")
+		info, statErr := os.Stat(skillMD)
+		if statErr != nil || info.IsDir() {
+			continue
+		}
+		if info.Size() > MaxFileSize {
+			res.SkippedNo = append(res.SkippedNo, skillMD)
+			continue
+		}
+		sk, perr := ParseAssetFile(skillMD, projectRoot, source, AssetKindSkill)
+		if perr != nil || sk == nil {
+			res.SkippedNo = append(res.SkippedNo, skillMD)
+			continue
+		}
+		sk.SubPath = e.Name()
+		res.Skills = append(res.Skills, *sk)
+		seen[source] = struct{}{}
+	}
+}
+
+// collectMarkdownFiles：递归遍历 rules/ 或 workflows/，将 .md / .mdc 文件收作单条资源。
+func collectMarkdownFiles(root, projectRoot string, source SkillSource, kind AssetKind, res *SkillScanResult, seen map[SkillSource]struct{}) {
+	if info, err := os.Stat(root); err != nil || !info.IsDir() {
+		return
+	}
+	_ = filepath.Walk(root, func(path string, info os.FileInfo, werr error) error {
+		if werr != nil || info == nil || info.IsDir() {
+			return nil
+		}
+		ext := strings.ToLower(filepath.Ext(path))
+		if ext != ".md" && ext != ".mdc" {
+			return nil
+		}
+		if info.Size() > MaxFileSize {
+			res.SkippedNo = append(res.SkippedNo, path)
+			return nil
+		}
+		sk, perr := ParseAssetFile(path, projectRoot, source, kind)
+		if perr != nil || sk == nil {
+			res.SkippedNo = append(res.SkippedNo, path)
+			return nil
+		}
+		sub, _ := filepath.Rel(root, path)
+		sk.SubPath = filepath.ToSlash(sub)
+		res.Skills = append(res.Skills, *sk)
+		seen[source] = struct{}{}
+		return nil
+	})
+}
+
+// FilterByKind：按资源类别过滤扫描结果中的 Skills 切片。
+func (r *SkillScanResult) FilterByKind(kind AssetKind) []Skill {
+	var out []Skill
+	for _, s := range r.Skills {
+		if s.Kind == kind {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// CountByKind：按资源类别统计扫描结果数量。
+func (r *SkillScanResult) CountByKind(kind AssetKind) int {
+	n := 0
+	for _, s := range r.Skills {
+		if s.Kind == kind {
+			n++
+		}
+	}
+	return n
 }
 
 // InferSourceFromPath：将路径分隔符统一为正斜杠后按 SourcePathMarkers 匹配子串。
@@ -141,14 +232,13 @@ func InferSourceFromPath(absPath string) SkillSource {
 	return SourceGeneric
 }
 
-// ParseSkillFile：解析单个 SKILL.md，正文超 8KB 截断以控总语料。
-func ParseSkillFile(absPath, projectRoot string, source SkillSource) (*Skill, error) {
+// ParseAssetFile：解析单个资源文件，按 kind 决定 Name 取值规则。
+func ParseAssetFile(absPath, projectRoot string, source SkillSource, kind AssetKind) (*Skill, error) {
 	raw, err := os.ReadFile(absPath)
 	if err != nil {
 		return nil, err
 	}
 	fm, body := parseFrontmatter(string(raw))
-	folder := filepath.Base(filepath.Dir(absPath))
 	rel, _ := filepath.Rel(projectRoot, absPath)
 	if rel == "" {
 		rel = absPath
@@ -157,9 +247,17 @@ func ParseSkillFile(absPath, projectRoot string, source SkillSource) (*Skill, er
 	if len(body) > maxBody {
 		body = body[:maxBody] + "\n\n_[truncated]_\n"
 	}
+	var defaultName string
+	if kind == AssetKindSkill {
+		defaultName = filepath.Base(filepath.Dir(absPath))
+	} else {
+		base := filepath.Base(absPath)
+		defaultName = strings.TrimSuffix(base, filepath.Ext(base))
+	}
 	return &Skill{
 		Source:      source,
-		Name:        resolveSkillName(folder, fm),
+		Kind:        kind,
+		Name:        resolveSkillName(defaultName, fm),
 		Path:        absPath,
 		RelPath:     filepath.ToSlash(rel),
 		Description: fm["description"],
@@ -167,6 +265,11 @@ func ParseSkillFile(absPath, projectRoot string, source SkillSource) (*Skill, er
 		Frontmatter: fm,
 		Body:        body,
 	}, nil
+}
+
+// ParseSkillFile：旧调用入口，等价于 ParseAssetFile(..., AssetKindSkill)，保留以兼容。
+func ParseSkillFile(absPath, projectRoot string, source SkillSource) (*Skill, error) {
+	return ParseAssetFile(absPath, projectRoot, source, AssetKindSkill)
 }
 
 // parseFrontmatter：识别首行 "---" 至下一行 "---" 之间的 key: value（轻量级，不引入 yaml 库）。

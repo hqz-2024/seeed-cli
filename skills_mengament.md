@@ -2,7 +2,7 @@
 
 > 命令一：`skills-scan`（别名 `skills` / `sk`）—— **扫描 + 质量评分 + 缺口分析**，一次执行同步输出三段结果。
 > 命令二：`skills-sync`（别名 `sync`）—— **跨工具 Skills 同步**，交互式选择源 skill 集合与目标工具，生成对应的 `SKILL.md` 文件包。
-> 扫描范围：**整个项目目录递归全扫**，识别所有文件名严格为 `SKILL.md`（大小写敏感）的文件，再按所在路径推断来源工具。已知工具：Cursor / Claude / Windsurf / Augment；未匹配到的统一归为 `generic`。
+> 扫描范围：**只扫描 `.cursor/`、`.claude/`、`.windsurf/`、`.augment/` 四个工具配置根目录**，在每个根目录下分析三类资源：`skills/`（含 `SKILL.md` 的子文件夹）、`rules/`（`.md` / `.mdc` 文件）、`workflows/`（`.md` 文件）。
 
 ---
 
@@ -12,11 +12,14 @@
 
 在用户当前项目目录下：
 
-1. **探测**已存在的 AI Skills 配置目录；
-2. **解析**目录内每个 skill 的 `SKILL.md`（YAML frontmatter + Markdown 正文）；
-3. **归纳（基础视图）**：输出名称 / 来源工具 / 应用场景（Scenario）/ 触发条件（Trigger）/ 简要说明；
-4. **质量评分**：对每个 skill 给出 4 维评分（描述清晰度、触发明确度、正文完备度、综合分，0–10 分），并标注主要扣分项；
-5. **缺口分析**：结合项目技术栈（复用 `frame` 采集的清单文件 + 目录树），列出**项目里缺失但建议补充**的 skill 类目（如测试、安全扫描、部署、提交规范等），并给出建议 skill 名与适用工具。
+1. **探测**四个工具配置根目录（`.cursor` / `.claude` / `.windsurf` / `.augment`），缺失则跳过该工具；
+2. **解析**每个工具下三类资源：
+   - `skills/`：每个含 `SKILL.md` 的子文件夹算一个 skill 单元；
+   - `rules/`：递归收集 `.md` / `.mdc` 文件；
+   - `workflows/`：递归收集 `.md` 文件。
+3. **归纳（基础视图）**：输出名称 / 来源工具 / 资源类别（skill/rule/workflow）/ 应用场景 / 触发条件 / 简要说明；
+4. **质量评分**：对每条资源给出 4 维评分（描述清晰度、触发明确度、正文完备度、综合分，0–10 分），并标注主要扣分项；
+5. **缺口分析**：结合项目技术栈（复用 `frame` 采集的清单文件 + 目录树），列出**项目里缺失但建议补充**的资源类目（如测试、安全扫描、部署、提交规范等），并给出建议名称与适用工具；
 6. **展示**：复用现有 `repModel` 全屏 TUI，流式展示 LLM 输出；
 7. **落盘**：生成 `seeed-cli/skills-YYYY-MM-DD_HH_mm_ss.md` 报告（含 4 个章节：总览 / 按工具分组 / 质量评分 / 缺口分析）。
 
@@ -36,39 +39,43 @@
 ### 2.1 扫描方式
 
 - 入口：`projectRoot = os.Getwd()`；
-- 实现：单次 `filepath.Walk(projectRoot, ...)`；
-- **不应用任何目录过滤**（不复用 `funcs.IgnoreDir`），即 `.git/` / `node_modules/` / `vendor/` / `dist/` 等目录**一并扫描**，逻辑保持纯粹；
-- 匹配规则：`filepath.Base(path) == "SKILL.md"`，**大小写敏感**；
+- 路径范围：**只看四个工具根目录** —— `.cursor/`、`.claude/`、`.windsurf/`、`.augment/`；任一根目录不存在则跳过该工具；
+- 在每个工具根目录下分别处理三类资源（任一子目录不存在则跳过）：
+  - `{tool}/skills/`：调用 `os.ReadDir` 取一级子文件夹，若该文件夹内含**严格大小写**的 `SKILL.md` 则识别为一个 skill 单元（resource kind = `skill`）；
+  - `{tool}/rules/`：`filepath.Walk` 递归收集 `.md` / `.mdc` 文件，每个文件即一条 rule（resource kind = `rule`）；
+  - `{tool}/workflows/`：`filepath.Walk` 递归收集 `.md` 文件，每个文件即一条 workflow（resource kind = `workflow`）。
 - 跳过条件：单文件 size > `funcs.MaxFileSize`（1 MiB）记入 `SkippedNo`；
 - 单文件解析失败仅记日志，**不影响其他文件**。
 
-### 2.2 Source 推断（按路径匹配，自上而下首个命中）
+### 2.2 Source 来源映射
 
-| 命中条件（路径中包含） | 归属 source |
+来源由所在工具根目录决定，**无需路径推断**：
+
+| 工具根目录 | 归属 source |
 |---|---|
-| `.cursor/skills/`   | `cursor`   |
-| `.claude/skills/`   | `claude`   |
-| `.windsurf/skills/` | `windsurf` |
-| `.augment/skills/`  | `augment`  |
-| 以上皆未命中         | `generic`  |
+| `.cursor/`   | `cursor`   |
+| `.claude/`   | `claude`   |
+| `.windsurf/` | `windsurf` |
+| `.augment/`  | `augment`  |
 
-> 将来要支持新工具（如 `.codex/skills/`、`.gemini/skills/`），只需在 `InferSourceFromPath` 中追加一行匹配规则，无需改其他模块。
+> `InferSourceFromPath` 仍保留为兜底工具函数（如旧报告路径回填使用），但 `ScanSkills` 主流程不再依赖路径推断。
 
-### 2.3 Skill 名解析
+### 2.3 名称解析
 
-- 优先：`frontmatter.name`；
-- 兜底：**`SKILL.md` 所在的最近一层文件夹名**（与 Cursor / Claude 官方约定一致）；
-- `generic` 类型同样适用，文件夹名即视为 skill 名。
+- 通用规则：优先取 `frontmatter.name`；
+- 兜底：
+  - `skill` 资源 → `SKILL.md` 所在的子文件夹名（与 Cursor / Claude 官方约定一致）；
+  - `rule` / `workflow` 资源 → 文件名去扩展名（`.md` / `.mdc`）。
 
 ### 2.4 空结果处理
 
-整库 `SKILL.md` 数 == 0 → 控制台输出 `no skills detected`，**不调用 LLM**，正常退出。
+四个工具下三类资源加总为 0 → 控制台输出 `no skills/rules/workflows detected under .cursor/.claude/.windsurf/.augment`，**不调用 LLM**，正常退出。
 
 ---
 
-## 3. SKILL.md 文件格式约定
+## 3. 资源文件格式约定
 
-标准格式：
+三类资源使用同一套**轻量级 frontmatter + Markdown 正文**约定，解析器不区分 kind，差异在「兜底名称」与「目标目录」。
 
 ```markdown
 ---
@@ -77,16 +84,16 @@ description: 部署到 staging 环境前的检查与发布
 when: 用户提及 deploy / staging / 发布 时触发
 ---
 
-正文为 skill 的具体指令、流程、示例……
+正文为该资源的具体指令、流程、示例……
 ```
 
 Frontmatter 字段（容错处理，缺失则用 LLM 推断）：
 
 | 字段 | 必需 | 用途 |
 |---|---|---|
-| `name`        | 否 | 显式名，缺失则取文件夹名 |
+| `name`        | 否 | 显式名；skill 缺失时取文件夹名，rule/workflow 缺失时取文件名（去扩展名） |
 | `description` | 否 | 一句话说明 → 映射为 Scenario |
-| `when` / `trigger` / `paths` | 否 | 触发条件 → 映射为 Trigger |
+| `when` / `trigger` / `paths` / `globs` | 否 | 触发条件 → 映射为 Trigger |
 | 其他          | 否 | 透传到原始字段保留 |
 
 ---
@@ -115,7 +122,7 @@ commands/
 ## 5. 数据结构（`commands/funcs/skills_scan.go`）
 
 ```go
-// SkillSource 标识 skill 来源工具。
+// SkillSource 标识资源来源工具。
 type SkillSource string
 
 const (
@@ -123,11 +130,35 @@ const (
     SourceClaude   SkillSource = "claude"
     SourceWindsurf SkillSource = "windsurf"
     SourceAugment  SkillSource = "augment"
-    SourceGeneric  SkillSource = "generic" // 路径未匹配到任何已知工具
+    SourceGeneric  SkillSource = "generic" // 仅供 InferSourceFromPath 兜底使用
 )
 
-// SkillTargetDirMap：已知工具 → 目标写盘根目录（相对项目根）。
-// 仅供 skills-sync 写盘时使用；扫描阶段不再依赖此 map（全工程递归）。
+// AssetKind 资源类别。
+type AssetKind string
+
+const (
+    AssetKindSkill    AssetKind = "skill"
+    AssetKindRule     AssetKind = "rule"
+    AssetKindWorkflow AssetKind = "workflow"
+)
+
+// SourceRootDirs：来源工具 → 工具配置根目录（相对项目根）。
+var SourceRootDirs = map[SkillSource]string{
+    SourceCursor:   ".cursor",
+    SourceClaude:   ".claude",
+    SourceWindsurf: ".windsurf",
+    SourceAugment:  ".augment",
+}
+
+// AssetKindDirs：资源类别 → 子目录名（相对工具根）。
+var AssetKindDirs = map[AssetKind]string{
+    AssetKindSkill:    "skills",
+    AssetKindRule:     "rules",
+    AssetKindWorkflow: "workflows",
+}
+
+// SkillTargetDirMap：已知工具 → skills 写盘根目录（相对项目根）。
+// 仅供 skills-sync 写盘时使用。
 var SkillTargetDirMap = map[SkillSource]string{
     SourceCursor:   ".cursor/skills",
     SourceClaude:   ".claude/skills",
@@ -135,20 +166,20 @@ var SkillTargetDirMap = map[SkillSource]string{
     SourceAugment:  ".augment/skills",
 }
 
-// SourcePathMarkers：路径子串 → source。InferSourceFromPath 按 map 遍历匹配，
-// 命中即返回；新增工具仅追加一行。注意子串两端的 '/'（或 OS 分隔符），避免误命中。
+// SourcePathMarkers：路径子串 → source。InferSourceFromPath 的兜底匹配表。
 var SourcePathMarkers = map[string]SkillSource{
-    ".cursor/skills/":   SourceCursor,
-    ".claude/skills/":   SourceClaude,
-    ".windsurf/skills/": SourceWindsurf,
-    ".augment/skills/":  SourceAugment,
+    ".cursor/":   SourceCursor,
+    ".claude/":   SourceClaude,
+    ".windsurf/": SourceWindsurf,
+    ".augment/":  SourceAugment,
 }
 
-// Skill 表示一个被发现并解析后的 skill。
+// Skill 表示一个被发现并解析后的资源（skill / rule / workflow 通用）。
 type Skill struct {
     Source      SkillSource       // 来源工具
-    Name        string            // 名称（frontmatter.name 或 文件夹名）
-    Path        string            // SKILL.md 绝对路径
+    Kind        AssetKind         // 资源类别
+    Name        string            // 名称（frontmatter.name 或 文件夹/文件名）
+    Path        string            // 文件绝对路径
     RelPath     string            // 相对项目根的路径
     Description string            // frontmatter.description
     Trigger     string            // frontmatter.when / trigger / paths（合并）
@@ -158,11 +189,15 @@ type Skill struct {
 
 // SkillScanResult 一次扫描的聚合结果。
 type SkillScanResult struct {
-    Root      string             // 项目根
-    Skills    []Skill            // 全部解析成功的 skill
-    Detected  []SkillSource      // 检测到至少存在目录的工具
-    SkippedNo []string           // 跳过的非 SKILL.md 路径（debug 用）
+    Root      string        // 项目根
+    Skills    []Skill       // 全部解析成功的资源（含 skill/rule/workflow）
+    Detected  []SkillSource // 检测到至少存在目录的工具
+    SkippedNo []string      // 跳过的路径（超大或解析失败）
 }
+
+// 辅助方法
+// func (r *SkillScanResult) FilterByKind(kind AssetKind) []Skill
+// func (r *SkillScanResult) CountByKind(kind AssetKind) int
 
 // SkillQualityScore 单个 skill 的质量评分（0–10 整数）。
 type SkillQualityScore struct {
@@ -209,32 +244,45 @@ type SkillSyncPlan struct {
 ### 6.1 `commands/funcs/skills_scan.go`
 
 ```go
-// ScanSkills 自 projectRoot 递归扫描整个工程，收集所有文件名严格为
-// "SKILL.md"（大小写敏感）的文件。
-// - 不应用 funcs.IgnoreDir，任何目录都进入；
-// - 超过 funcs.MaxFileSize 的 SKILL.md 跳过并记入 SkippedNo；
+// ScanSkills 自 projectRoot 扫描 .cursor/.claude/.windsurf/.augment 四个工具根，
+// 在每个工具根下处理 skills/、rules/、workflows/ 三类资源。
+// - skills/：os.ReadDir 取一级子目录，含 SKILL.md（严格大小写）则识别为一个 skill 单元；
+// - rules/：filepath.Walk 递归收集 .md / .mdc 文件；
+// - workflows/：filepath.Walk 递归收集 .md 文件；
+// - 超过 funcs.MaxFileSize 的文件跳过并记入 SkippedNo；
 // - 单文件解析失败仅记日志，不影响其他文件；
-// - 顺带填充 Detected：扫描结果中实际出现过的 SkillSource 去重集合。
+// - 顺带填充 Detected：实际出现过资源的 SkillSource 去重集合。
 func ScanSkills(projectRoot string) (*SkillScanResult, error)
 
-// InferSourceFromPath 根据 SKILL.md 绝对路径推断来源工具。
-// 实现：将路径分隔符统一为正斜杠后，按 SourcePathMarkers 顺序匹配子串，
-// 全部未命中 → SourceGeneric。
-func InferSourceFromPath(absPath string) SkillSource
+// collectSkillFolders / collectMarkdownFiles：ScanSkills 内部使用的两类收集器，
+// 分别对应「skills 文件夹单元」与「rules/workflows 文件单元」。
+func collectSkillFolders(skillsDir, projectRoot string, source SkillSource, res *SkillScanResult, seen map[SkillSource]struct{})
+func collectMarkdownFiles(root, projectRoot string, source SkillSource, kind AssetKind, res *SkillScanResult, seen map[SkillSource]struct{})
 
-// ParseSkillFile 解析单个 SKILL.md 文件。source 由调用方先通过
-// InferSourceFromPath 计算后传入。
+// FilterByKind / CountByKind：扫描结果的按 kind 过滤与计数辅助。
+func (r *SkillScanResult) FilterByKind(kind AssetKind) []Skill
+func (r *SkillScanResult) CountByKind(kind AssetKind) int
+
+// ParseAssetFile 解析单个资源文件（skill / rule / workflow 通用）。
+// kind = AssetKindSkill 时 defaultName 取所在文件夹名；其余 kind 取文件名（去扩展名）。
+func ParseAssetFile(absPath, projectRoot string, source SkillSource, kind AssetKind) (*Skill, error)
+
+// ParseSkillFile 保留为兼容入口，等价于 ParseAssetFile(..., AssetKindSkill)。
 func ParseSkillFile(absPath, projectRoot string, source SkillSource) (*Skill, error)
 
-// parseFrontmatter 提取 SKILL.md 顶部 YAML frontmatter（轻量级 key: value）。
+// InferSourceFromPath 兜底：按 SourcePathMarkers 子串匹配，无命中 → SourceGeneric。
+// ScanSkills 主流程不依赖此函数，仅外部调用时使用。
+func InferSourceFromPath(absPath string) SkillSource
+
+// parseFrontmatter 提取顶部 YAML frontmatter（轻量级 key: value）。
 func parseFrontmatter(raw string) (fm map[string]string, body string)
 
 // resolveSkillName / resolveTrigger 内部辅助函数。
-func resolveSkillName(folderName string, fm map[string]string) string
+func resolveSkillName(defaultName string, fm map[string]string) string
 func resolveTrigger(fm map[string]string) string
 ```
 
-> 移除 `DetectSkillDirs`：扫描已全工程递归，无需先做目录存在性预探测；`Detected` 字段改为 `ScanSkills` 内部从结果集合反推。
+> `skills-sync` 仅消费 `FilterByKind(AssetKindSkill)` 的结果；rule / workflow 不会被同步（同步语义未定义且会破坏目标工具加载规则）。
 
 ### 6.2 `commands/funcs/skills_dialect.go`（跨工具方言适配）
 
@@ -317,34 +365,37 @@ func CollectFrameCorpus(root string) string
 
 ```text
 const skillsPrompt = `你是 AI 编程工具配置审计助手。下面会给你两段输入：
-（A）若干 SKILL.md 文件（每条标注 source、name、相对路径、frontmatter、正文片段）；
+（A）若干 AI 配置资源条目（每条标注 source、kind ∈ {skill,rule,workflow}、name、相对路径、frontmatter、正文片段）。
+    - skill：来自 .cursor/.claude/.windsurf/.augment 下 skills/ 子目录中含 SKILL.md 的文件夹；
+    - rule：来自上述四工具的 rules/ 目录（.md / .mdc 文件）；
+    - workflow：来自上述四工具的 workflows/ 目录（.md 文件）。
 （B）项目技术栈摘要（清单文件 + 目录树片段）。
 
 请输出一份 Markdown 报告，**严格按以下四章顺序与标题**：
 
 ## 1. 总览
-- 表格列出：来源工具 | skill 名 | 应用场景（一句话） | 触发条件（一句话）
+- 表格列出：来源工具 | 类别 | 名称 | 应用场景（一句话） | 触发条件（一句话）
 
 ## 2. 按工具分组
 对每个出现过的来源工具（Cursor/Claude/Windsurf/Augment）输出一个二级小节，
-小节内逐个 skill 给出：
+小节内按 **skills / rules / workflows** 三个三级小节分别罗列；每条资源给出：
 - **应用场景**：基于 description 与正文归纳，禁止编造；
-- **触发条件**：基于 when / trigger / paths；缺失则写「未声明，建议补充」；
-- **风险/重叠提示**：多个 skill 描述高度相似时标注「与 XXX 可能重叠」。
+- **触发条件**：基于 when / trigger / paths / globs / alwaysApply 等字段；缺失则写「未声明，建议补充」；
+- **风险/重叠提示**：多个资源描述高度相似时标注「与 XXX 可能重叠」。
 
 ## 3. 质量评分
-- 表格列出：skill 引用（source/name）| 描述清晰度 | 触发明确度 | 正文完备度 | 综合分 | 主要扣分项
+- 表格列出：资源引用（source/kind/name）| 描述清晰度 | 触发明确度 | 正文完备度 | 综合分 | 主要扣分项
 - 评分维度均为 0–10 整数；综合分 = 三项均值四舍五入；
-- 表格之后，挑选综合分 < 6 的 skill，逐条给出**修复建议**（每条 ≤ 2 句）。
+- 表格之后，挑选综合分 < 6 的资源，逐条给出**修复建议**（每条 ≤ 2 句）。
 
 ## 4. 缺口分析
 - 基于（B）推断项目类型（语言、框架、构建/部署方式）。
-- 对照（A）已有 skill 类目，列出**项目应当具备但目前缺失**的 skill 类目；
-- 表格列出：缺失类目 | 缺失原因（一句话）| 建议 skill 名 | 建议落地工具；
+- 对照（A）已有资源类目，列出**项目应当具备但目前缺失**的 skill / rule / workflow 类目；
+- 表格列出：缺失类目 | 类别 | 缺失原因（一句话）| 建议名称 | 建议落地工具；
 - 严禁臆测项目不需要的方向；技术栈摘要中无明显证据时写「无明显缺口」即可。
 
 要求：
-- 不修改原文、不新增不存在的 skill；
+- 不修改原文、不新增不存在的资源；
 - 全文中文，标准 Markdown；
 - 第 3、4 章的表格列与字段名必须**逐字一致**，便于后续解析。`
 ```
@@ -362,9 +413,10 @@ const skillsPrompt = `你是 AI 编程工具配置审计助手。下面会给你
 - 控制台：流式渲染 LLM 输出至 viewport；
 - 报告路径：`<pwd>/seeed-cli/skills-2006-01-02_15_04_05.md`（与 `frame` 一致的目录与命名）；
 - 报告结构（由 `renderSkillsMarkdown` 拼接）：
-  1. 扫描元信息表（来源、SKILL.md 数量、扫描时间）；
-  2. LLM 输出（4 章节正文）；
-  3. 附录：结构化后的 `SkillQualityScore` / `SkillGapSuggestion`（JSON 代码块，便于后续工具消费）。
+  1. 扫描元信息表（项目根、扫描范围、按 kind 分项的资源数、来源工具数、扫描时间）；
+  2. 已发现的资源清单（按 skill / rule / workflow 三段分别列出 #/来源/名称/相对路径）；
+  3. LLM 输出（4 章节正文）；
+  4. 附录：结构化后的 `SkillQualityScore` / `SkillGapSuggestion`（JSON 代码块，便于后续工具消费）。
 
 ### 8.2 `skills-sync` 报告
 

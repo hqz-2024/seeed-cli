@@ -78,14 +78,14 @@ func (m *skillsMultiSelectModel) View() tea.View {
 	var v tea.View
 	v.AltScreen = true
 	var sb strings.Builder
-	sb.WriteString(selHeader.Render("Select source skills") + "\n")
+	sb.WriteString(selHeader.Render("Select source assets (skills / rules / workflows)") + "\n")
 	sb.WriteString(selHint.Render("↑/↓ move · space toggle · a all · enter confirm · q cancel") + "\n\n")
 	for i, sk := range m.items {
 		mark := "[ ]"
 		if m.checked[i] {
 			mark = selChosen.Render("[x]")
 		}
-		line := fmt.Sprintf(" %s  %s/%s  %s", mark, sk.Source, sk.Name, selDim.Render(truncate(sk.Description, 60)))
+		line := fmt.Sprintf(" %s  %s/%s/%s  %s", mark, sk.Source, sk.Kind, sk.Name, selDim.Render(truncate(sk.Description, 60)))
 		if i == m.cursor {
 			line = selCursor.Render("›") + line[1:]
 		} else {

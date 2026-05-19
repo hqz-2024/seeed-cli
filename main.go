@@ -91,6 +91,20 @@ var _commands = []*cli.Command{
 		},
 		Action: commands.HandleSkillsSync,
 	},
+	{
+		Name:    "skills-pull",
+		Usage:   "联网拉取高星 skill（内嵌 Top-50 索引），下载后按目标工具的方言安装",
+		Aliases: []string{"pull"},
+		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "search", Usage: "在 id/name/description/tags 中模糊过滤"},
+			&cli.StringFlag{Name: "ids", Usage: "逗号分隔的 skill id 或 name（缺省进入交互式多选）"},
+			&cli.StringFlag{Name: "target", Usage: "目标工具：cursor|claude|windsurf|augment"},
+			&cli.BoolFlag{Name: "list", Aliases: []string{"l"}, Usage: "只列出当前匹配的 skill 索引，不下载"},
+			&cli.BoolFlag{Name: "overwrite", Usage: "目标文件已存在时是否覆盖"},
+			&cli.BoolFlag{Name: "yes", Aliases: []string{"y"}, Usage: "跳过确认提示"},
+		},
+		Action: commands.HandleSkillsPull,
+	},
 
 	{
 		Name: "clear",
