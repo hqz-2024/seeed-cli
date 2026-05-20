@@ -16,7 +16,7 @@ type Config struct {
 }
 
 type Provider struct {
-	BaiLian LLMConfig `toml: "BaiLian"`
+	BaiLian LLMConfig `toml:"BaiLian"`
 }
 
 type LLMConfig struct {
