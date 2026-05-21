@@ -1,18 +1,19 @@
 package configs
 
-import ( 
+import (
 	"fmt"
+	"github.com/BurntSushi/toml"
 	"os"
 	"path/filepath"
-	"github.com/BurntSushi/toml"
 )
 
+var Version = "0.0.1"
 
 type Config struct {
-	Name string
-	Version string
-	Desc string
-	Provider  Provider `toml:"provider"`
+	Name     string
+	Version  string
+	Desc     string
+	Provider Provider `toml:"provider"`
 }
 
 type Provider struct {
@@ -20,27 +21,24 @@ type Provider struct {
 }
 
 type LLMConfig struct {
-	Model string
-	ApiKey string 
+	Model  string
+	ApiKey string
 }
-
-
 
 /**
  * 获取配置文件路径的方法
  */
-func GetConfigPath() string{
+func GetConfigPath() string {
 	home, _ := os.UserHomeDir()
 
 	return filepath.Join(home, "./seeed-cli", "config.toml")
 }
 
-
 // defaultConfig 首次运行时写入用户目录的默认 TOML 内容
 func defaultConfig() Config {
 	return Config{
 		Name:    "seeed-cli",
-		Version: "0.0.1",
+		Version: Version,
 		Desc:    "源于 AI，归于 AI，所有输出均由 AI 生成，建议将安全或者质量评测结果再次交给您的 AI 来处理。",
 		Provider: Provider{
 			BaiLian: LLMConfig{
@@ -69,15 +67,13 @@ func Init() error {
 	return nil
 }
 
-
-
 /**
  * 保存文件
  */
 
-func SaveConfig(path string, cfg *Config) error{
+func SaveConfig(path string, cfg *Config) error {
 	file, err := os.Create(path)
-	if err != nil{
+	if err != nil {
 		return err
 	}
 
@@ -89,8 +85,8 @@ func SaveConfig(path string, cfg *Config) error{
 /**
  * 加载配置文件
  */
-func LoadConfig() (*Config, error){ 
-	path := GetConfigPath() 
+func LoadConfig() (*Config, error) {
+	path := GetConfigPath()
 	var cfg Config
 	_, err := toml.DecodeFile(path, &cfg)
 	if err != nil {
@@ -100,55 +96,51 @@ func LoadConfig() (*Config, error){
 	return &cfg, nil
 }
 
-
 /**
  * 设置 api-key
  */
-func SetAK(provider string, ak string) error { 
-	path := GetConfigPath() 
+func SetAK(provider string, ak string) error {
+	path := GetConfigPath()
 	var cfg Config
 	_, err := toml.DecodeFile(path, &cfg)
 
-	if err != nil{
+	if err != nil {
 		return err
 	}
 
 	switch provider {
-		case "BaiLian":
-			cfg.Provider.BaiLian.ApiKey = ak
-		default:
-			return fmt.Errorf("unknown provider: %s", provider)
-	} 
+	case "BaiLian":
+		cfg.Provider.BaiLian.ApiKey = ak
+	default:
+		return fmt.Errorf("unknown provider: %s", provider)
+	}
 
 	SaveConfig(path, &cfg)
 	return nil
 }
 
-
 /**
  * 获取 api-key
  */
-func GetAK(provider string) (string, error) { 
-	path := GetConfigPath() 
+func GetAK(provider string) (string, error) {
+	path := GetConfigPath()
 
-	if _, err := os.Stat(path); os.IsNotExist(err){
+	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return "", err
 	}
 
 	var cfg Config
 	_, err := toml.DecodeFile(path, &cfg)
 
-	if err != nil{
-		return  "", err
+	if err != nil {
+		return "", err
 	}
-	
+
 	switch provider {
 	case "BaiLian":
 		return cfg.Provider.BaiLian.ApiKey, nil
 	default:
 		return "", fmt.Errorf("unsupported provider: %s", provider)
 	}
-	
 
 }
-

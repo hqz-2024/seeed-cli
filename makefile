@@ -1,5 +1,7 @@
 
 
+include build.conf
+
 init:
 	go mod tidy
 
@@ -10,18 +12,20 @@ dev:
 # 需要集成发布器 goreleaser
 build: 
 # Mac
-	GOOS=darwin GOARCH=amd64 go build -o bin/seeed-cli-darwin-amd64
+	GOOS=darwin GOARCH=amd64 go build -ldflags "-X seeed-cli/commands/configs.Version=$(VERSION)" -o bin/seeed-cli-darwin-amd64
+	GOOS=darwin GOARCH=arm64 go build -ldflags "-X seeed-cli/commands/configs.Version=$(VERSION)" -o bin/seeed-cli-darwin-arm64
 # Linux
-	GOOS=linux GOARCH=amd64 go build -o bin/seeed-cli-linux-amd64 
+	GOOS=linux GOARCH=amd64 go build -ldflags "-X seeed-cli/commands/configs.Version=$(VERSION)" -o bin/seeed-cli-linux-amd64 
+	GOOS=linux GOARCH=arm64 go build -ldflags "-X seeed-cli/commands/configs.Version=$(VERSION)" -o bin/seeed-cli-linux-arm64 
 # Windows
-	GOOS=windows GOARCH=amd64 go build -o bin/seeed-cli.exe 
+	GOOS=windows GOARCH=amd64 go build -ldflags "-X seeed-cli/commands/configs.Version=$(VERSION)" -o bin/seeed-cli.exe 
 
 
 run:
 	./bin/seeed-cli
 
 install:
-	go install
+	go install -ldflags "-X seeed-cli/commands/configs.Version=$(VERSION)"
 
 # 	安装后确认是否安装成功
 # 	ls $(go env GOPATH)/bin

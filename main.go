@@ -1,48 +1,47 @@
 package main
 
-import ( 
-    // "fmt"
-    "log"
-    "os"
-    "context"
+import (
+	// "fmt"
+	"context"
+	"log"
+	"os"
 
-    "github.com/urfave/cli/v3"
+	"github.com/urfave/cli/v3"
 
 	"seeed-cli/commands/configs"
 
 	"seeed-cli/commands"
 )
 
-
 // 命令集合，方便后面扩展
-var _commands = []*cli.Command{ 
-	{ 
-		Name: "set-ak",
-		Usage: "设置 LLM 的 api-key, seeed-cli set-ak BaiLian xxx[您的api key]", 
-		Action: commands.HandleSetAK, 
+var _commands = []*cli.Command{
+	{
+		Name:   "set-ak",
+		Usage:  "设置 LLM 的 api-key, seeed-cli set-ak BaiLian xxx[您的api key]",
+		Action: commands.HandleSetAK,
 	},
-	{ 
-		Name: "get-ak",
-		Usage: "查看已经设置的 LLM 的 api-key, seeed-cli get-ak BaiLian", 
-		Action: commands.HandleGetAK, 
+	{
+		Name:   "get-ak",
+		Usage:  "查看已经设置的 LLM 的 api-key, seeed-cli get-ak BaiLian",
+		Action: commands.HandleGetAK,
 	},
-	{ 
-		Name: "frame",
-		Usage: "项目架构分析",
-		Aliases:  []string{"f"},
-		Action: commands.HandleFrame, 
+	{
+		Name:    "frame",
+		Usage:   "项目架构分析",
+		Aliases: []string{"f"},
+		Action:  commands.HandleFrame,
 	},
-	{ 
-		Name: "safe-scan",
-		Usage: "项目代码安全扫描",
-		Aliases:  []string{"safe"},
-		Action: commands.HandleSafeScan, 
+	{
+		Name:    "safe-scan",
+		Usage:   "项目代码安全扫描",
+		Aliases: []string{"safe"},
+		Action:  commands.HandleSafeScan,
 	},
-	{ 
-		Name: "quality",
-		Usage: "代码质量评测",
-		Aliases:  []string{"q"},
-		Action: commands.HandleQuality, 
+	{
+		Name:    "quality",
+		Usage:   "代码质量评测",
+		Aliases: []string{"q"},
+		Action:  commands.HandleQuality,
 	},
 	{
 		Name:    "gen-commit",
@@ -69,9 +68,9 @@ var _commands = []*cli.Command{
 		Action:  commands.HandleGenAPIDoc,
 	},
 	{
-		Name:    "who",
-		Usage:   "启发式粗估源码「古法/手写」与「偏 AI 风格」占比（控制台比例条）",
-		Action:  commands.HandleWho,
+		Name:   "who",
+		Usage:  "启发式粗估源码「古法/手写」与「偏 AI 风格」占比（控制台比例条）",
+		Action: commands.HandleWho,
 	},
 	{
 		Name:    "skills-scan",
@@ -107,16 +106,15 @@ var _commands = []*cli.Command{
 	},
 
 	{
-		Name: "clear",
-		Usage: "清除所有配置", 
-		Action: commands.HandleClear, 
+		Name:   "clear",
+		Usage:  "清除所有配置",
+		Action: commands.HandleClear,
 	},
 	{
-		Name:    "install-s",
-		Usage:   "创建一个 seee-cli 的简短命令： s （功能与 seeed-cli 一致），如: s -h",
-		Action:  commands.HandleInstallShort,
+		Name:   "install-s",
+		Usage:  "创建一个 seee-cli 的简短命令： s （功能与 seeed-cli 一致），如: s -h",
+		Action: commands.HandleInstallShort,
 	},
-	
 }
 
 func main() {
@@ -127,23 +125,22 @@ func main() {
 		panic(err)
 	}
 
-
 	cfg, err := configs.LoadConfig()
 	if err != nil {
 		panic(err)
 	}
- 
+
 	// 装饰一下 Help 命令
 	commands.CustomHelp()
- 
+
 	// 启动命令
 	cmd := &cli.Command{
 		Name:     cfg.Name,
 		Usage:    cfg.Desc,
-		Version:  cfg.Version,
+		Version:  configs.Version,
 		Commands: _commands,
 	}
-  
+
 	if err := cmd.Run(context.Background(), os.Args); err != nil {
 		log.Fatal(err)
 	}
