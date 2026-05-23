@@ -18,12 +18,12 @@ import (
 var _commands = []*cli.Command{ 
 	{ 
 		Name: "set-ak",
-		Usage: "设置 LLM 的 api-key, seeed-cli set-ak BaiLian xxx[您的api key]", 
+		Usage: "设置 LLM 的 api-key, seeed-cli set-ak [BaiLian|DeepSeek|GPT] xxx[您的api key]",
 		Action: commands.HandleSetAK, 
 	},
 	{ 
 		Name: "get-ak",
-		Usage: "查看已经设置的 LLM 的 api-key, seeed-cli get-ak BaiLian", 
+		Usage: "查看已经设置的 LLM 的 api-key, seeed-cli get-ak [BaiLian|DeepSeek|GPT]",
 		Action: commands.HandleGetAK, 
 	},
 	{ 

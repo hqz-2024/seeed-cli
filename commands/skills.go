@@ -14,6 +14,7 @@ import (
 
 	"github.com/urfave/cli/v3"
 
+	"seeed-cli/commands/configs"
 	"seeed-cli/commands/funcs"
 )
 
@@ -107,8 +108,18 @@ func runSkillsWork(m *repModel) {
 	}
 	m.SendLog(bootOKLine(fmt.Sprintf("corpus size: %d bytes", len(corpus))))
 
+	cfg, cfgErr := configs.LoadConfig()
+	if cfgErr != nil {
+		m.SendLog(logWarn.Render(cfgErr.Error()))
+		return
+	}
+	provider := cfg.DefaultProvider
+	if provider == "" {
+		provider = "BaiLian"
+	}
+
 	m.SendLog(bootWaitLine("llm: analyzing skills…"))
-	full, err := m.RunLLMStream(skillsPrompt+"\n\n---\n\n"+corpus, "")
+	full, err := m.RunLLMStream(provider, skillsPrompt+"\n\n---\n\n"+corpus, "")
 	if err != nil || strings.TrimSpace(full) == "" {
 		return
 	}

@@ -66,7 +66,11 @@ func runGenAPIDocWork(m *repModel) {
 		m.SendLog(logWarn.Render(err.Error()))
 		return
 	}
-	model := cfg.Provider.BaiLian.Model
+	provider := cfg.DefaultProvider
+	if provider == "" {
+		provider = "BaiLian"
+	}
+	model := configs.GetProviderModel(cfg, provider)
 
 	codeContent := ""
 	var draft strings.Builder
@@ -82,7 +86,7 @@ func runGenAPIDocWork(m *repModel) {
 		}
 		m.SendLog(bootWaitLine("llm: analyzing batch…"))
 		prompt := genAPIDocBatchPrompt + "\n\n--- 代码批次 ---\n" + codeContent
-		llmRes, err := m.RunLLMStream(prompt, model)
+		llmRes, err := m.RunLLMStream(provider, prompt, model)
 		if err != nil {
 			m.SendLog(logWarn.Render(err.Error()))
 		} else if strings.TrimSpace(llmRes) != "" {
@@ -136,7 +140,7 @@ func runGenAPIDocWork(m *repModel) {
 		if len(synthIn) > genAPIDocSynthMaxBytes {
 			synthIn = synthIn[:genAPIDocSynthMaxBytes] + "\n\n（前文已截断，请仅依据以上内容合并。）\n"
 		}
-		merged, merr := m.RunLLMStream(genAPIDocMergePrompt+synthIn, model)
+		merged, merr := m.RunLLMStream(provider, genAPIDocMergePrompt+synthIn, model)
 		if merr != nil {
 			m.SendLog(logWarn.Render(merr.Error()))
 			finalText = "# 接口文档\n\n（合并步骤失败，以下为分批草稿拼接，请人工整理。）\n\n" + combined

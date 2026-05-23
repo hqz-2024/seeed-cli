@@ -99,7 +99,11 @@ func runWhoWork(m *repModel) {
 		m.SendLog(logWarn.Render(err.Error()))
 		return
 	}
-	model := cfg.Provider.BaiLian.Model
+	provider := cfg.DefaultProvider
+	if provider == "" {
+		provider = "BaiLian"
+	}
+	model := configs.GetProviderModel(cfg, provider)
 
 	var estimates []string
 	codeContent := ""
@@ -115,7 +119,7 @@ func runWhoWork(m *repModel) {
 		}
 		m.SendLog(bootWaitLine("llm: who batch…"))
 		prompt := whoBatchPrompt + "\n\n--- 代码批次 ---\n" + codeContent
-		out, lerr := m.RunLLMStream(prompt, model)
+		out, lerr := m.RunLLMStream(provider, prompt, model)
 		if lerr != nil {
 			m.SendLog(logWarn.Render(lerr.Error()))
 		} else {
@@ -174,7 +178,7 @@ func runWhoWork(m *repModel) {
 		finalLine = estimates[0]
 	} else {
 		m.SendLog(bootWaitLine("llm: merging…"))
-		merged, merr := m.RunLLMStream(whoMergePrompt+strings.Join(estimates, "\n"), model)
+		merged, merr := m.RunLLMStream(provider, whoMergePrompt+strings.Join(estimates, "\n"), model)
 		if merr != nil {
 			m.SendLog(logWarn.Render(merr.Error()))
 			return

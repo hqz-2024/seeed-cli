@@ -10,6 +10,7 @@ import (
 
 	"github.com/urfave/cli/v3"
 
+	"seeed-cli/commands/configs"
 	"seeed-cli/commands/funcs"
 )
 
@@ -38,6 +39,17 @@ func runQualityWork(m *repModel) {
 
 	m.SendLog(bootOKLine("kernel: quality reviewer online"))
 	m.SendLog(bootOKLine(fmt.Sprintf("rootfs: %s", m.pwd)))
+
+	cfg, cfgErr := configs.LoadConfig()
+	if cfgErr != nil {
+		m.SendLog(logWarn.Render(cfgErr.Error()))
+		return
+	}
+	provider := cfg.DefaultProvider
+	if provider == "" {
+		provider = "BaiLian"
+	}
+	model := configs.GetProviderModel(cfg, provider)
 
 	err := filepath.Walk(m.pwd, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -69,7 +81,7 @@ func runQualityWork(m *repModel) {
 - 结构建议：每个涉及文件一个小节，含：亮点、可改进点（可选：优先级低/中）、小结。
 明确给出本批次你点评到的文件路径列表。`
 
-				llmRes, _ := m.RunLLMStream(prompt+"\n\n"+codeContent, "qwen3.6-flash")
+				llmRes, _ := m.RunLLMStream(provider, prompt+"\n\n"+codeContent, model)
 				report += llmRes
 				codeContent = ""
 			}

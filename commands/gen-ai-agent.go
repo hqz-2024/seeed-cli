@@ -59,7 +59,11 @@ func runGenAIAgentWork(m *repModel) {
 		m.SendLog(logWarn.Render(err.Error()))
 		return
 	}
-	model := cfg.Provider.BaiLian.Model
+	provider := cfg.DefaultProvider
+	if provider == "" {
+		provider = "BaiLian"
+	}
+	model := configs.GetProviderModel(cfg, provider)
 
 	codeContent := ""
 	var draft strings.Builder
@@ -75,7 +79,7 @@ func runGenAIAgentWork(m *repModel) {
 		}
 		m.SendLog(bootWaitLine("llm: analyzing batch…"))
 		prompt := genAIAgentBatchPrompt + "\n\n--- 代码批次 ---\n" + codeContent
-		llmRes, err := m.RunLLMStream(prompt, model)
+		llmRes, err := m.RunLLMStream(provider, prompt, model)
 		if err != nil {
 			m.SendLog(logWarn.Render(err.Error()))
 		} else if strings.TrimSpace(llmRes) != "" {
@@ -129,7 +133,7 @@ func runGenAIAgentWork(m *repModel) {
 		if len(synthIn) > genAIAgentSynthMaxBytes {
 			synthIn = synthIn[:genAIAgentSynthMaxBytes] + "\n\n（前文已截断，请仅依据以上内容合并。）\n"
 		}
-		merged, merr := m.RunLLMStream(genAIAgentMergePrompt+synthIn, model)
+		merged, merr := m.RunLLMStream(provider, genAIAgentMergePrompt+synthIn, model)
 		if merr != nil {
 			m.SendLog(logWarn.Render(merr.Error()))
 			finalText = "# AI 协作说明\n\n（合并步骤失败，以下为分批草稿拼接，请人工整理。）\n\n" + combined

@@ -113,7 +113,11 @@ func runGenCommitWork(m *repModel) {
 		m.SendLog(logWarn.Render(err.Error()))
 		return
 	}
-	model := cfg.Provider.BaiLian.Model
+	provider := cfg.DefaultProvider
+	if provider == "" {
+		provider = "BaiLian"
+	}
+	model := configs.GetProviderModel(cfg, provider)
 
 	var sb strings.Builder
 	sb.WriteString(genCommitPrompt)
@@ -125,7 +129,7 @@ func runGenCommitWork(m *repModel) {
 	sb.WriteString(diffFull)
 
 	m.SendLog(bootWaitLine("llm: generating commit line…"))
-	out, err := m.RunLLMStream(sb.String(), model)
+	out, err := m.RunLLMStream(provider, sb.String(), model)
 	if err != nil {
 		m.SendLog(logWarn.Render(err.Error()))
 		return

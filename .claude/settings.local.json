@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(seeed-cli -h)",
+      "Bash(seeed-cli get-ak *)",
+      "Bash(seeed-cli frame *)",
+      "Bash(seeed-cli gen-ai-agent *)",
+      "Bash(go build *)",
+      "Bash(go run *)",
+      "Bash(SEEED_PLAIN=1 go run . frame)",
+      "Bash(stat -c \"%Y\" \"c:/Users/Katasa/Desktop/seeed-cli/seeed-cli/AI-AGENT.md\" 2>/dev/null || ls -la \"c:/Users/Katasa/Desktop/seeed-cli/seeed-cli/AI-AGENT.md\")",
+      "Read(//c/Users/Katasa/Desktop/seeed-cli/seeed-cli/**)",
+      "Bash(SEEED_PLAIN=1 go run . gen-ai-agent)",
+      "Bash(SEEED_PLAIN=1 go run . safe-scan)",
+      "Bash(SEEED_PLAIN=1 go run . quality)"
+    ]
+  }
+}

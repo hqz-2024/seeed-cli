@@ -1,65 +1,57 @@
 # AI 协作说明
-由工具根据仓库代码扫描归纳生成，可人工修订。
+<sub>由工具根据仓库代码扫描归纳生成，可人工修订。</sub>
 
-## 1. 技术栈与核心依赖
-- **运行时**：Go
+## 项目架构与目录规范
+- **入口与路由**：`main.go` 为唯一程序入口。命令路由与业务处理器统一收敛至 `commands/` 目录。
+- **模块划分**：
+  - `commands/configs/`：配置读写、路径计算与默认值管理
+  - `commands/funcs/`：跨命令共享核心逻辑（LLM 流式调用、技能解析、文件过滤、方言适配等）
+  - `assets/`：静态资源声明与内嵌配置
+- **遍历与过滤策略**：使用 `filepath.Walk` 时严格遵循全局 `IgnoreDir`（排除版本控制、依赖、缓存及 IDE 目录）与 `CodeExt`（限定可扫描后缀）。硬编码 `MaxFileSize = 1MB` 防止单次扫描占用过高内存。
+- **输出落盘**：所有分析/报告类指令结果统一写入执行目录下的 `./seeed-cli/` 子目录，文件名需带时间戳前缀（格式如 `frame-2006-01-02_15_04_05.md`）。
+
+## 技术栈与依赖清单
+- **语言与运行时**：Go（重度依赖标准库，无重型业务框架）
 - **CLI 框架**：`github.com/urfave/cli/v3`
-- **终端交互 (TUI)**：`charm.land/bubbletea/v2`、`charm.land/lipgloss/v2`
-- **渲染与动效**：`charm.land/glamour/v2`、`charm.land/bubbles/v2/spinner`、`charm.land/bubbles/v2/viewport`
-- **配置解析**：`github.com/BurntSushi/toml`
-- **LLM SDK**：`github.com/openai/openai-go`（底层基地址硬编码为阿里云百炼/DashScope 兼容端点：`https://dashscope.aliyuncs.com/compatible-mode/v1`）
-- **安装交付**：原生 Bash 脚本结合 `curl`，原生支持 Darwin/Linux + amd64/arm64 的二进制下载与权限配置。
+- **TUI/UI 渲染**：核心交互循环使用 `charm.land/bubbletea/v2`；样式排版使用 `charm.land/lipgloss/v2`；Markdown 转 ANSI 使用 `charm.land/glamour/v2`；辅助组件含 `spinner` 与 `viewport`
+- **LLM 客户端**：`github.com/openai/openai-go`（兼容 OpenAI 协议，实际对接百度百炼、DeepSeek、OpenAI）
+- **序列化与解析**：`github.com/BurntSushi/toml`（配置）、`gopkg.in/yaml.v3`（索引清单）、`regexp`（响应文本提取）
+- **资源内嵌**：通过 `go:embed` 将 `assets/skills-top50.yaml` 编译至二进制，消除首次运行时的网络依赖。
 
-## 2. 目录结构与模块划分
-| 路径 | 职责说明 |
-|:---|:---|
-| `main.go` | CLI 命令注册、全局初始化与启动入口 |
-| `install.sh` | 一键环境准备与二进制部署脚本 |
-| `commands/` | 集中承载所有子命令的 Handler 与核心业务逻辑（架构分析、安全扫描、代码质量、日报/提交生成、AI-Agent 文档自举等） |
-| `commands/configs/` | 独立配置管理包，封装 TOML 读写、用户主目录路径计算与结构化数据映射 |
-| `commands/funcs/` | 通用能力层，包含 LLM 流式客户端封装、文件后缀/目录黑白名单判断、全量统计逻辑等 |
+## 配置与环境变量
+- **配置文件**：TOML 格式，默认路径 `$HOME/.seeed-cli/config.toml`。结构包含基础元信息（`Name`/`Version`/`Desc`）、默认 Provider 配置，以及按厂商分组的 Provider 结构体（各含 `Model` 与 `ApiKey`）。
+- **环境变量**：
+  - `GITHUB_TOKEN`：用于 GitHub Contents API 鉴权（自动附加至 HTTP Header）
+  - `SEEED_PLAIN`：值为非空或检测到非交互式终端时，强制关闭 Glamour 富文本渲染，降级为纯文本换行输出
+- **初始化逻辑**：`main()` 显式调用 `configs.Init()`。若配置文件缺失，则自动创建目录并写入内置默认模板。
 
-> 📦 **包导入约定**：所有内部引用统一使用 `seeed-cli/commands/...` 前缀。后续新增或重构模块时，请严格保持该 Go Module Name 路径一致性。
+## 终端 UI 与交互契约
+- **全屏复用架构**：`rep_ui.go` 封装通用 Bubble Tea Model，提供标题栏、带行号侧栏的视口、底部状态条与 Spinner，供各子命令直接挂载调用。
+- **快捷键统一规范**：菜单导航均支持 `↑/↓` 或 `k/j`，`Space` 切换选中，`a` 全选，`Enter` 确认，`q`/`Esc`/`Ctrl+C` 安全退出。
+- **异步消息总线**：后台 Goroutine 产生的日志通过 `repAppendLogMsg`、`repStreamDeltaMsg` 等消息类型安全投递至 UI 视口，彻底避免并发写屏冲突。
+- **动态适配与降级**：监听 `tea.WindowSizeMsg` 实时重算视口宽度与自动换行阈值；检测 fenced code block 中的 `mermaid` 标记时，`glamour_tty.go` 会临时替换为 `text` 并追加防错注释，落盘文件仍保留原始 Mermaid 语法。
+- **日志规范**：不引入 `zap`/`logrus` 等外部日志库。进度反馈完全基于 `lipgloss` 封装的 `bootOKLine()`/`bootWaitLine()`，配合颜色与 `[ OK ]`/`[ .. ]` 标签实现流式 Delta 推送。
 
-## 3. 配置与环境约定
-- **存储格式与路径**：TOML 格式，默认生效路径为 `~/.seeed-cli/config.toml`。
-- **数据结构设计**：扁平化。包含基础元数据字段（`Name` / `Version` / `Desc`）与单一 Provider 节点。当前仅实现 `BaiLian` 配置块，内含 `LLMConfig`（字段：`Model`、`ApiKey`）。
-- **初始化与加载策略**：
-  1. 优先读取默认路径 `~/.seeed-cli/config.toml`。
-  2. 若默认路径缺失，尝试兜底解析同级相对路径 `config.toml`。
-  3. 无论加载来源如何，成功解析后均会序列化并写入默认路径。若目标文件已存在，将执行覆盖写入。
-- **参数传递机制**：**不依赖**环境变量或命令行标志。模型名称与 API Key 完全通过本地配置文件注入，客户端初始化时通过 `option.WithAPIKey` 与 `option.WithBaseURL` 传入。
+## LLM 集成与提示词工程
+- **分批流式处理**：源码按 `512KB` 阈值切块喂给 LLM；第二阶段长文档合并时严格限制输入上下文上限为 `120KB`。
+- **两阶段流水线**：第一阶段独立生成本地批次草稿 → 收集有效响应后触发第二阶段，进行去重、冲突仲裁与结构重组。
+- **结构化提取**：依赖正则表达式（如 `reWhoLine`）与 Markdown 表格特征匹配解析 LLM 返回内容。解析失败时仅标注警告或回退，绝不做强类型断言。
+- **强约束 Prompt 模板**：`gen-ai-agent.go`、`gen-api-doc.go`、`skills.go`、`who.go` 均内置严格 Prompt，强制规定章节顺序、表格列名、输出语言及示例格式。高频注入“严禁臆测”、“未出现内容不编造”、“读不清标待确认”等防幻觉指令。
 
-## 4. 编码规范与架构模式
-- **命名惯例**：
-  - CLI 路由入口：`HandleXxx`
-  - 后台异步执行逻辑：`runXxxWork`
-  - 配置读写接口：`GetXxx` / `SetXxx`
-  - LLM 调用封装：`FetchLLM` / `FetchLLMStream`
-- **常量与规则前置**：Prompt 模板、截断阈值、忽略目录列表、受支持后缀等静态规则均提取为包级常量或 `map[string]struct{}`，禁止在业务逻辑中硬编码魔法字符串。
-- **批处理与累加器模式**：文件遍历采用内存累加策略。达到预设阈值或遍历结束时触发 `flush`。单次累积超限直接物理截断，并在尾部追加 `_truncated_` 标记以保证下游解析安全。
-- **字符串组装**：高频使用 `strings.Builder` 拼接上下文，手动控制换行符与分隔符，确保 LLM 输入结构的稳定性。
-- **注释风格**：中英混用。核心函数上方采用 `/** */` 块注释声明职责，其余以单行 `//` 为主。多处保留防御性注释（如 `/* 避免把本工具输出扫进语料 */`、`// 原本就不存在…`），重构时请务必保留。
+## 编码规范与错误处理
+- **命名约定**：导出函数严格 PascalCase（如 `HandleSetAK`、`ScanSkills`）；内部辅助函数优先动词开头（如 `runRepUI`、`flushBatch`）。文件命名采用连字符（命令入口 `api-key.go`）与下划线（内部功能 `skills_dialect.go`）区分。
+- **注释风格**：包级文件头部强制一行说明职责；混用 `//` 单行与 `/** ... */` 多行注释；不使用完整 Godoc 块。
+- **错误处理**：全线采用 `if err != nil { return err }` 逐层透传。仅在 `main.go` 初始化阶段的致命错误使用 `panic(err)`。
+- **降级与兜底**：配置加载失败打印警告后终止；文档生成类命令在 LLM 合并失败时自动回退至“分批草稿拼接”模式；Provider 缺失时默认降级为 `BaiLian`。
+- **上下文与安全**：Handler 接收 `context.Context` 并透传至 `repModel` 与 LLM 请求，保障超时与取消机制生效。路径操作强制使用 `filepath.Clean`、`os.IsNotExist`、`info.IsDir()` 及软链接校验，严防越权覆盖。
 
-## 5. AI 交互与上下文控制约束
-- **Prompt 强格式控制**：各子命令内置严格输出规范，代码生成/改写时必须遵守：
-  - `commit` 类：限定 `Emoji + 类型 + 中文简述` 格式。
-  - `daily-report` 类：**禁止** Markdown 语法，仅限纯文本。
-  - `arch-review` 类：强制章节顺序，Mermaid 图表需符合语法限制。
-- **防幻觉与边界声明**：Prompt 链中反复注入系统指令：`“不要编造”`、`“未在上下文中出现则写未知”`、`“冲突以后者/更具体者为准”`。代码层面对超长语料实施物理截断（如切片限制 `corpus[:200000]`），杜绝幻觉扩散。
-- **流式 UI 隔离**：LLM 响应通过 Bubbletea 自定义消息（`repStreamDeltaMsg` / `repStreamEndMsg`）异步推送至 `Viewport`。TTY 环境下，Mermaid 代码围栏会被 `glamour_tty.go` 透明替换为纯文本以防渲染错乱，文件落盘时自动恢复原始 Markdown 语法。
-- **分批合并机制**：`gen-ai-agent` 模块采用两阶段流程：① 分块获取草稿 → ② 调用二次 LLM 进行去重、结构对齐与冲突消解 → 输出标准化 `AI-AGENT.md`。
-- **上下文负载控制**：严格限制扫描深度（目录树 `depth ≤ 5`）、单文件大小上限（`MaxFileSize = 1MB`）及单次 Prompt Token 预算，防止推理阻塞或溢出。*(注：内部批处理阈值含 200KB/512KB 等多档，具体动态阈值视场景而定，以实际运行日志为准。)*
-
-## 6. 测试与质量保障
-- **单元测试现状**：当前仓库未引入 `*_test.go` 文件，暂无 Mock 组织方式或标准测试套件。
-- **运行时自检与修复**：依赖 LLM 动态生成报告与自举文档。Prompt 内置 `“先肯定后建议”`、`“明确列出涉及文件”` 等约束，利用大模型自身能力完成部分逻辑校验与自我修正。
-- **静态过滤约定**：通过代码层的 `CodeExt`（支持后缀白名单）与 `IgnoreDir`（噪声目录黑名单）映射表提前拦截非源码文件，降低无效分析成本。
+## 构建与安装规范
+- **自动化安装**：`install.sh` 自动识别 macOS/Linux 与 x86_64/arm64 架构，从 GitHub Releases `latest/download/` 拉取对应二进制，赋予权限后安装至 `/usr/local/bin`。
+- **快捷命令绑定**：内置 `install-s` 命令，在可执行文件同级目录幂等创建指向自身的符号链接 `s`（Windows 平台为 `s.exe`），并处理权限降级提示。
 
 ---
 
-### 🚫 禁止事项
-- **严禁编造**：不得虚构仓库中不存在的 API、路径、配置文件键值、第三方依赖或环境变量。无法确定的逻辑一律标记为 `待确认`，禁止臆测填充。
-- **严禁越权修改**：不得修改或绕过已有的 TUI 渲染逻辑、LLM 客户端配置注入方式及 `~/.seeed-cli/config.toml` 的加载与覆盖协议。
-- **遵守输出限制**：生成或改造内容必须严格遵守各子命令绑定的 Prompt 格式规范（如纯文本日报、特定 Commit 前缀等），不得随意添加 Markdown 装饰或变更排版结构。
-- **上下文安全红线**：遇到超阈值文件或超长上下文时，必须沿用现有的截断与累加器机制，不可自行改变分块策略或移除 `_truncated_` 标记。
+## ⚠️ 禁止事项（AI Agent 必读）
+- **绝对禁止编造**：不得虚构本仓库中不存在的 API、函数签名、文件路径、配置项或第三方依赖。
+- **严格遵循约定**：输出路径必须为 `./seeed-cli/` 且带时间戳；UI 键位与 TUI 交互逻辑不得擅自修改；Prompt 中的防幻觉约束为最高优先级。
+- **无法确定时标注**：遇逻辑矛盾、缺失细节或架构不明处，统一标记为 `[待确认]` 并暂停推断，严禁自行脑补实现。

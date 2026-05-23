@@ -15,7 +15,7 @@ func HandleSetAK(ctx context.Context, cmd *cli.Command) error {
     ak := cmd.Args().Get(1)
     
     if provider == "" || ak == "" {
-        fmt.Printf("请输入您的 api-key, 使用方式： seeed-cli set-ak BaiLian(平台) xxx(这是您的api-key)\n")
+        fmt.Printf("请输入您的 api-key, 使用方式： seeed-cli set-ak [BaiLian|DeepSeek|GPT] xxx(这是您的api-key)\n")
         return nil
     } 
 
@@ -32,7 +32,7 @@ func HandleSetAK(ctx context.Context, cmd *cli.Command) error {
 func HandleGetAK(ctx context.Context, cmd *cli.Command) error { 
     provider := cmd.Args().Get(0)
     if provider == "" {
-        fmt.Printf("请输入您要查询的平台，如： seeed-cli get-ak BaiLian\n")
+        fmt.Printf("请输入您要查询的平台，如： seeed-cli get-ak [BaiLian|DeepSeek|GPT]\n")
         return nil
     }
         

@@ -61,7 +61,11 @@ func runGenDailyWork(m *repModel) {
 		m.SendLog(logWarn.Render(err.Error()))
 		return
 	}
-	model := cfg.Provider.BaiLian.Model
+	provider := cfg.DefaultProvider
+	if provider == "" {
+		provider = "BaiLian"
+	}
+	model := configs.GetProviderModel(cfg, provider)
 
 	var sb strings.Builder
 	sb.WriteString(genDailyPrompt)
@@ -73,7 +77,7 @@ func runGenDailyWork(m *repModel) {
 		sb.WriteString("\n")
 	}
 
-	text, err := m.RunLLMStream(sb.String(), model)
+	text, err := m.RunLLMStream(provider, sb.String(), model)
 	if err != nil {
 		m.SendLog(logWarn.Render(err.Error()))
 		return

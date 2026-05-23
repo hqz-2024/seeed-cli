@@ -10,6 +10,7 @@ import (
 
 	"github.com/urfave/cli/v3"
 
+	"seeed-cli/commands/configs"
 	"seeed-cli/commands/funcs"
 )
 
@@ -41,6 +42,17 @@ func runSafeScanWork(m *repModel) {
 	m.SendLog(bootOKLine("kernel: security scanner online"))
 	m.SendLog(bootOKLine(fmt.Sprintf("rootfs: %s", m.pwd)))
 
+	cfg, cfgErr := configs.LoadConfig()
+	if cfgErr != nil {
+		m.SendLog(logWarn.Render(cfgErr.Error()))
+		return
+	}
+	provider := cfg.DefaultProvider
+	if provider == "" {
+		provider = "BaiLian"
+	}
+	model := configs.GetProviderModel(cfg, provider)
+
 	err := filepath.Walk(m.pwd, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -67,7 +79,7 @@ func runSafeScanWork(m *repModel) {
 			if countSize > 512 || current == m.total {
 				m.SendLog(bootWaitLine("llm: analyzing batch…"))
 				prompt := "帮我检查下面代码中是否存在安全问题，明确告诉我存在安全的问题数量和具体的文件地址、代码、问题描述、修复方案。\n" + codeContent
-				llmRes, _ := m.RunLLMStream(prompt, "qwen3.6-flash")
+				llmRes, _ := m.RunLLMStream(provider, prompt, model)
 				safeContent += llmRes
 				codeContent = ""
 			}

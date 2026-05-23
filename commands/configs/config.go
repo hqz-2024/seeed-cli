@@ -9,14 +9,17 @@ import (
 
 
 type Config struct {
-	Name string
-	Version string
-	Desc string
-	Provider  Provider `toml:"provider"`
+	Name            string
+	Version         string
+	Desc            string
+	DefaultProvider string   `toml:"default_provider"`
+	Provider        Provider `toml:"provider"`
 }
 
 type Provider struct {
-	BaiLian LLMConfig `toml:"BaiLian"`
+	BaiLian  LLMConfig `toml:"BaiLian"`
+	DeepSeek LLMConfig `toml:"DeepSeek"`
+	GPT      LLMConfig `toml:"GPT"`
 }
 
 type LLMConfig struct {
@@ -39,12 +42,21 @@ func GetConfigPath() string{
 // defaultConfig 首次运行时写入用户目录的默认 TOML 内容
 func defaultConfig() Config {
 	return Config{
-		Name:    "seeed-cli",
-		Version: "0.0.1",
-		Desc:    "源于 AI，归于 AI，所有输出均由 AI 生成，建议将安全或者质量评测结果再次交给您的 AI 来处理。",
+		Name:            "seeed-cli",
+		Version:         "0.0.1",
+		Desc:            "源于 AI，归于 AI，所有输出均由 AI 生成，建议将安全或者质量评测结果再次交给您的 AI 来处理。",
+		DefaultProvider: "BaiLian",
 		Provider: Provider{
 			BaiLian: LLMConfig{
 				Model:  "qwen3.6-flash",
+				ApiKey: "",
+			},
+			DeepSeek: LLMConfig{
+				Model:  "deepseek-v4-pro",
+				ApiKey: "",
+			},
+			GPT: LLMConfig{
+				Model:  "gpt-4o",
 				ApiKey: "",
 			},
 		},
@@ -114,11 +126,15 @@ func SetAK(provider string, ak string) error {
 	}
 
 	switch provider {
-		case "BaiLian":
-			cfg.Provider.BaiLian.ApiKey = ak
-		default:
-			return fmt.Errorf("unknown provider: %s", provider)
-	} 
+	case "BaiLian":
+		cfg.Provider.BaiLian.ApiKey = ak
+	case "DeepSeek":
+		cfg.Provider.DeepSeek.ApiKey = ak
+	case "GPT":
+		cfg.Provider.GPT.ApiKey = ak
+	default:
+		return fmt.Errorf("unknown provider: %s", provider)
+	}
 
 	SaveConfig(path, &cfg)
 	return nil
@@ -145,10 +161,49 @@ func GetAK(provider string) (string, error) {
 	switch provider {
 	case "BaiLian":
 		return cfg.Provider.BaiLian.ApiKey, nil
+	case "DeepSeek":
+		return cfg.Provider.DeepSeek.ApiKey, nil
+	case "GPT":
+		return cfg.Provider.GPT.ApiKey, nil
 	default:
 		return "", fmt.Errorf("unsupported provider: %s", provider)
 	}
-	
+}
 
+// GetProviderBaseURL 返回各 provider 的 OpenAI 兼容端点
+func GetProviderBaseURL(provider string) string {
+	switch provider {
+	case "BaiLian":
+		return "https://dashscope.aliyuncs.com/compatible-mode/v1"
+	case "DeepSeek":
+		return "https://api.deepseek.com/v1"
+	case "GPT":
+		return "https://api.openai.com/v1"
+	default:
+		return ""
+	}
+}
+
+// GetProviderModel 从配置获取 provider 对应的模型名，模型为空时返回内置默认值
+func GetProviderModel(cfg *Config, provider string) string {
+	switch provider {
+	case "BaiLian":
+		if cfg.Provider.BaiLian.Model != "" {
+			return cfg.Provider.BaiLian.Model
+		}
+		return "qwen3.6-flash"
+	case "DeepSeek":
+		if cfg.Provider.DeepSeek.Model != "" {
+			return cfg.Provider.DeepSeek.Model
+		}
+		return "deepseek-chat"
+	case "GPT":
+		if cfg.Provider.GPT.Model != "" {
+			return cfg.Provider.GPT.Model
+		}
+		return "gpt-4o"
+	default:
+		return ""
+	}
 }
 

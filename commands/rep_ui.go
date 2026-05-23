@@ -4,12 +4,14 @@ package commands
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/term"
 
 	"seeed-cli/commands/funcs"
 )
@@ -91,16 +93,20 @@ func (m *repModel) SendLog(line string) {
 
 // RunLLMStream：打开流式 UI（loading + delta），返回聚合全文与 API 错误。
 
-func (m *repModel) RunLLMStream(prompt, model string) (string, error) {
-	m.prog.Send(repLoadingSetMsg(true))
-	defer m.prog.Send(repLoadingSetMsg(false))
-	m.prog.Send(repStreamStartMsg{})
-	full, err := funcs.FetchLLMStream(m.scanCtx, prompt, model, func(d string) {
-		if d != "" {
+func (m *repModel) RunLLMStream(provider, prompt, model string) (string, error) {
+	if m.prog != nil {
+		m.prog.Send(repLoadingSetMsg(true))
+		defer m.prog.Send(repLoadingSetMsg(false))
+		m.prog.Send(repStreamStartMsg{})
+	}
+	full, err := funcs.FetchLLMStream(m.scanCtx, provider, prompt, model, func(d string) {
+		if d != "" && m.prog != nil {
 			m.prog.Send(repStreamDeltaMsg(d))
 		}
 	})
-	m.prog.Send(repStreamEndMsg{full: full, err: err})
+	if m.prog != nil {
+		m.prog.Send(repStreamEndMsg{full: full, err: err})
+	}
 	return full, err
 }
 
@@ -270,7 +276,7 @@ func runRepUI(ctx context.Context, headerTitle string, pwd string, total int, pl
 		headerTitle: headerTitle,
 		pwd:         pwd,
 		total:       total,
-		plainLLM:    plainLLM,
+		plainLLM:    plainLLM || !term.IsTerminal(os.Stdin.Fd()) || os.Getenv("SEEED_PLAIN") != "",
 		scanCtx:     ctx,
 		work:        work,
 		spin: spinner.New(
@@ -278,6 +284,12 @@ func runRepUI(ctx context.Context, headerTitle string, pwd string, total int, pl
 			spinner.WithStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("#00ff9f")).Bold(true)),
 		),
 	}
+
+	if m.plainLLM {
+		work(m)
+		return nil
+	}
+
 	p := tea.NewProgram(m)
 	m.prog = p
 	_, err := p.Run()

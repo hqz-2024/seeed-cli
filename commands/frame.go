@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/urfave/cli/v3"
+
+	"seeed-cli/commands/configs"
 )
 
 const frameLLMPrompt = `你是一名资深软件架构师。下面提供某个代码仓库中自动采集的片段（清单文件、README、目录树、关键入口源码等）。请严格用 **Markdown** 输出一份《项目框架分析报告》，语言用中文，结构必须包含以下章节（标题级别自拟，但顺序与内容要覆盖全）：
@@ -61,7 +63,16 @@ func runFrameWork(m *repModel) {
 	m.SendLog(bootOKLine(fmt.Sprintf("corpus size: %d bytes", len(corpus))))
 
 	m.SendLog(bootWaitLine("llm: generating architecture report…"))
-	full, err := m.RunLLMStream(frameLLMPrompt+"\n\n---\n\n"+corpus, "qwen3.6-flash")
+	cfg, err := configs.LoadConfig()
+	if err != nil {
+		m.SendLog(logWarn.Render(err.Error()))
+		return
+	}
+	provider := cfg.DefaultProvider
+	if provider == "" {
+		provider = "BaiLian"
+	}
+	full, err := m.RunLLMStream(provider, frameLLMPrompt+"\n\n---\n\n"+corpus, configs.GetProviderModel(cfg, provider))
 	if err != nil || full == "" {
 		return
 	}
