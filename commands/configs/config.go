@@ -128,10 +128,19 @@ func SetAK(provider string, ak string) error {
 	switch provider {
 	case "BaiLian":
 		cfg.Provider.BaiLian.ApiKey = ak
+		if cfg.Provider.BaiLian.Model == "" {
+			cfg.Provider.BaiLian.Model = "qwen3.6-flash"
+		}
 	case "DeepSeek":
 		cfg.Provider.DeepSeek.ApiKey = ak
+		if cfg.Provider.DeepSeek.Model == "" {
+			cfg.Provider.DeepSeek.Model = "deepseek-v4-pro"
+		}
 	case "GPT":
 		cfg.Provider.GPT.ApiKey = ak
+		if cfg.Provider.GPT.Model == "" {
+			cfg.Provider.GPT.Model = "gpt-4o"
+		}
 	default:
 		return fmt.Errorf("unknown provider: %s", provider)
 	}
@@ -176,12 +185,57 @@ func GetProviderBaseURL(provider string) string {
 	case "BaiLian":
 		return "https://dashscope.aliyuncs.com/compatible-mode/v1"
 	case "DeepSeek":
-		return "https://api.deepseek.com/v1"
+		return "https://api.deepseek.com"
 	case "GPT":
 		return "https://api.openai.com/v1"
 	default:
 		return ""
 	}
+}
+
+// GetAvailableProviders 返回所有有 AK 的 provider，按 DefaultProvider 优先、排除 exclude 列表
+func GetAvailableProviders(cfg *Config, exclude ...string) []string {
+	all := []string{cfg.DefaultProvider, "BaiLian", "DeepSeek", "GPT"}
+	excluded := map[string]bool{}
+	for _, e := range exclude {
+		if e != "" {
+			excluded[e] = true
+		}
+	}
+	seen := map[string]bool{}
+	var out []string
+	for _, p := range all {
+		if p == "" || seen[p] || excluded[p] {
+			continue
+		}
+		seen[p] = true
+		ak, _ := GetAK(p)
+		if ak != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// GetBestProvider 返回第一个有 AK 的 provider，优先用 DefaultProvider
+func GetBestProvider(cfg *Config) string {
+	candidates := []string{cfg.DefaultProvider, "BaiLian", "DeepSeek", "GPT"}
+	seen := map[string]bool{}
+	for _, p := range candidates {
+		if p == "" || seen[p] {
+			continue
+		}
+		seen[p] = true
+		ak, _ := GetAK(p)
+		if ak != "" {
+			return p
+		}
+	}
+	// 全空时返回 DefaultProvider 兜底（后续 FetchLLMStream 会报错提示配置 key）
+	if cfg.DefaultProvider != "" {
+		return cfg.DefaultProvider
+	}
+	return "BaiLian"
 }
 
 // GetProviderModel 从配置获取 provider 对应的模型名，模型为空时返回内置默认值
@@ -196,7 +250,7 @@ func GetProviderModel(cfg *Config, provider string) string {
 		if cfg.Provider.DeepSeek.Model != "" {
 			return cfg.Provider.DeepSeek.Model
 		}
-		return "deepseek-chat"
+		return "deepseek-v4-pro"
 	case "GPT":
 		if cfg.Provider.GPT.Model != "" {
 			return cfg.Provider.GPT.Model

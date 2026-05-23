@@ -47,10 +47,7 @@ func runSafeScanWork(m *repModel) {
 		m.SendLog(logWarn.Render(cfgErr.Error()))
 		return
 	}
-	provider := cfg.DefaultProvider
-	if provider == "" {
-		provider = "BaiLian"
-	}
+	provider := configs.GetBestProvider(cfg)
 	model := configs.GetProviderModel(cfg, provider)
 
 	err := filepath.Walk(m.pwd, func(path string, info os.FileInfo, err error) error {

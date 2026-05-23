@@ -68,10 +68,7 @@ func runFrameWork(m *repModel) {
 		m.SendLog(logWarn.Render(err.Error()))
 		return
 	}
-	provider := cfg.DefaultProvider
-	if provider == "" {
-		provider = "BaiLian"
-	}
+	provider := configs.GetBestProvider(cfg)
 	full, err := m.RunLLMStream(provider, frameLLMPrompt+"\n\n---\n\n"+corpus, configs.GetProviderModel(cfg, provider))
 	if err != nil || full == "" {
 		return

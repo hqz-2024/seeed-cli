@@ -36,6 +36,11 @@ type repStreamEndMsg struct {
 	err  error
 }
 
+type repProviderMsg struct {
+	provider string
+	model    string
+}
+
 var (
 	titleStyle = func() lipgloss.Style {
 		b := lipgloss.RoundedBorder()
@@ -83,6 +88,7 @@ type repModel struct {
 	work         func(*repModel)
 	lastSave     string // work 结束前写入，供 repFinishedMsg 带给 UI
 	printOnQuit  string // 非空时 tea 退出后打印一行（如 gen-commit 供管道复制）
+	providerInfo string // 当前 LLM 提供商 + 模型名
 }
 
 func (m *repModel) SendLog(line string) {
@@ -102,6 +108,10 @@ func (m *repModel) RunLLMStream(provider, prompt, model string) (string, error) 
 	full, err := funcs.FetchLLMStream(m.scanCtx, provider, prompt, model, func(d string) {
 		if d != "" && m.prog != nil {
 			m.prog.Send(repStreamDeltaMsg(d))
+		}
+	}, func(p, md string) {
+		if m.prog != nil {
+			m.prog.Send(repProviderMsg{provider: p, model: md})
 		}
 	})
 	if m.prog != nil {
@@ -126,7 +136,10 @@ func (m *repModel) Init() tea.Cmd {
 
 func (m *repModel) headerView() string {
 	title := titleStyle.Render(m.headerTitle)
-	if m.loading {
+	if m.providerInfo != "" {
+		pStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#ffaa00")).Bold(true)
+		title = lipgloss.JoinHorizontal(lipgloss.Center, title, pStyle.Render(" "+m.providerInfo+" "))
+	} else if m.loading {
 		title = lipgloss.JoinHorizontal(lipgloss.Center, title, logWarn.Render(" ▸ NEURAL "))
 	}
 	line := strings.Repeat("─", max(0, m.viewport.Width()-lipgloss.Width(title)))
@@ -208,6 +221,9 @@ func (m *repModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		m.syncViewport()
+
+	case repProviderMsg:
+		m.providerInfo = msg.provider + " / " + msg.model
 
 	case tea.KeyPressMsg:
 		if k := msg.String(); k == "ctrl+c" || k == "q" || k == "esc" {

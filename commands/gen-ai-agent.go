@@ -59,10 +59,7 @@ func runGenAIAgentWork(m *repModel) {
 		m.SendLog(logWarn.Render(err.Error()))
 		return
 	}
-	provider := cfg.DefaultProvider
-	if provider == "" {
-		provider = "BaiLian"
-	}
+	provider := configs.GetBestProvider(cfg)
 	model := configs.GetProviderModel(cfg, provider)
 
 	codeContent := ""

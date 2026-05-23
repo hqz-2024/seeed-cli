@@ -113,10 +113,7 @@ func runSkillsWork(m *repModel) {
 		m.SendLog(logWarn.Render(cfgErr.Error()))
 		return
 	}
-	provider := cfg.DefaultProvider
-	if provider == "" {
-		provider = "BaiLian"
-	}
+	provider := configs.GetBestProvider(cfg)
 
 	m.SendLog(bootWaitLine("llm: analyzing skills…"))
 	full, err := m.RunLLMStream(provider, skillsPrompt+"\n\n---\n\n"+corpus, "")

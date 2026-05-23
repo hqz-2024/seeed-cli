@@ -11,29 +11,57 @@ import (
 	"seeed-cli/commands/configs"
 )
 
-func FetchLLMStream(ctx context.Context, provider string, text string, llmModel string, onDelta func(string)) (string, error) {
+func FetchLLMStream(ctx context.Context, provider string, text string, llmModel string, onDelta func(string), onProvider func(provider, model string)) (string, error) {
 	cfg, err := configs.LoadConfig()
 	if err != nil {
 		return "", err
 	}
 
-	if provider == "" {
-		provider = cfg.DefaultProvider
-		if provider == "" {
-			provider = "BaiLian"
-		}
+	var providers []string
+	if provider != "" {
+		providers = append(providers, provider)
+	}
+	providers = append(providers, configs.GetAvailableProviders(cfg, provider)...)
+	if len(providers) == 0 {
+		return "", fmt.Errorf("\n\n[ERROR] no api key configured, please set api key first.\n\n")
 	}
 
+	var lastErr error
+	for i, p := range providers {
+		model := llmModel
+		if i > 0 {
+			model = ""
+		}
+		if model == "" {
+			model = configs.GetProviderModel(cfg, p)
+		}
+		if onProvider != nil {
+			onProvider(p, model)
+		}
+		result, err := tryProvider(ctx, cfg, p, text, model, onDelta)
+		if err == nil && result != "" {
+			return result, nil
+		}
+		lastErr = err
+	}
+	if lastErr != nil {
+		return "", lastErr
+	}
+	return "", fmt.Errorf("all configured providers failed")
+}
+
+func tryProvider(ctx context.Context, cfg *configs.Config, provider string, text string, llmModel string, onDelta func(string)) (string, error) {
 	ak, err := configs.GetAK(provider)
 	if err != nil {
 		return "", err
 	}
 	if ak == "" {
-		return "", fmt.Errorf("\n\n[ERROR] api key is not set for %s, please set api key first.\n\n", provider)
+		return "", fmt.Errorf("api key not set for %s", provider)
 	}
 
-	if llmModel == "" {
-		llmModel = configs.GetProviderModel(cfg, provider)
+	model := llmModel
+	if model == "" {
+		model = configs.GetProviderModel(cfg, provider)
 	}
 
 	baseURL := configs.GetProviderBaseURL(provider)
@@ -49,7 +77,7 @@ func FetchLLMStream(ctx context.Context, provider string, text string, llmModel 
 		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.UserMessage(text),
 		},
-		Model: llmModel,
+		Model: model,
 	})
 	defer stream.Close()
 
@@ -67,13 +95,13 @@ func FetchLLMStream(ctx context.Context, provider string, text string, llmModel 
 		}
 	}
 	if err := stream.Err(); err != nil {
-		return b.String(), err
+		return b.String(), fmt.Errorf("[%s] %w", provider, err)
 	}
 	return b.String(), nil
 }
 
 func FetchLLM(provider string, text string, llmModel string) string {
-	out, err := FetchLLMStream(context.TODO(), provider, text, llmModel, nil)
+	out, err := FetchLLMStream(context.TODO(), provider, text, llmModel, nil, nil)
 	if err != nil {
 		panic(err)
 	}
