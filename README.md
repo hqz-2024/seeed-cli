@@ -13,120 +13,30 @@
 
 ## 功能/命令
 
-| #   | 功能                                                  | 命令              | 完成 |
-| --- | ----------------------------------------------------- | ----------------- | ---- |
-| 1   | 项目安全扫描                                          | `s safe-scan`    | ✓    |
-| 2   | 项目代码质量检查                                      | `s quality`      | ✓    |
-| 3   | 项目架构分析                                          | `s frame`        | ✓    |
-| 4   | 项目说明生成(针对AI)，作为 AI 修改本项目的说明书      | `s gen-ai-agent` | ✓    |
-| 5   | 根据提交历史生成日报                                  | `s gen-daily`    | ✓    |
-| 5   | 根据修改文件生成提交的 commit 说明(git commit 的描述) | `s gen-commit`   | ✓    |
-| 6   | 接口文档生成                                          | `s gen-api-doc`  | ✓    |
-| 7   | 代码出处分析                                          | `s who`          | ✓    |
-| 8   | 多端兼容(windows、linux、macos)                       | —                 | ✓    |
-| 9   | AI skills/rules/workflows 扫描 + 评分 + 缺口分析      | `s skills-scan`  | ✓    |
-| 10  | 跨工具 skills 同步（生成对应 SKILL.md 文件包）        | `s skills-sync`  | ✓    |
-| 11  | 联网拉取高星 skill（内嵌 Top-50 索引）                | `s skills-pull`  | ✓    |
-| 12  | 炫酷 ai 聊天                                          | —                 | x    |
-| 13  | 想象中...                                             | —                 | -    |
-
-
-## AI Skills 管理
-
-围绕 Cursor / Claude Code / Windsurf / Augment 这类 vibe coding 工具的 `SKILL.md` 协议，提供三条命令：
-
-### skills-scan：扫描 + 评分 + 缺口分析
-
-只扫描 `.cursor/`、`.claude/`、`.windsurf/`、`.augment/` 四个工具根目录下的三类资源：
-
-- **skills**：`{tool}/skills/<name>/SKILL.md` —— 每个含 `SKILL.md` 的子文件夹算一个 skill 单元；
-- **rules**：`{tool}/rules/**/*.md` 或 `*.mdc` —— 递归收集；
-- **workflows**：`{tool}/workflows/**/*.md` —— 递归收集。
-
-来源工具按所在根目录确定（`.cursor/` → cursor，`.claude/` → claude，`.windsurf/` → windsurf，`.augment/` → augment）。LLM 输出四章报告：总览表、按工具分组（skills/rules/workflows 三栏）、质量评分、缺口分析。
-
-``` sh
-seeed-cli skills-scan
-# 别名
-seeed-cli skills
-seeed-cli sk
-```
-
-报告落盘：`<pwd>/seeed-cli/skills-YYYY-MM-DD_HH_mm_ss.md`，附录含结构化的 `scores` / `gaps` JSON。
-
-### skills-sync：跨工具同步 SKILL.md 文件包
-
-选择源 skill 与目标工具，按目标工具的 frontmatter 方言重写并写入目标目录（如 `.claude/skills/<name>/SKILL.md`）。被剔除的工具专属字段（Cursor 的 `paths`、Claude 的 `allowed-tools`）会以引用块形式追加到正文顶部，避免信息丢失。
-
-**交互模式**（多选源 skill + 单选目标工具）：
-
-``` sh
-seeed-cli skills-sync
-# 别名
-seeed-cli sync
-```
-
-操作键：`↑/↓` 移动 · `Space` 选/取消 · `a` 全选 · `Enter` 确认 · `q` 取消。
-
-**非交互模式**（CI / 脚本场景）：
-
-``` sh
-seeed-cli skills-sync --target claude --skills deploy-staging,api-review --overwrite -y
-```
-
-| flag | 说明 |
-|------|------|
-| `--target`    | 目标工具：`cursor` \| `claude` \| `windsurf` \| `augment` |
-| `--skills`    | 逗号分隔的源 skill 名（缺省进入交互式多选） |
-| `--overwrite` | 目标文件已存在时是否覆盖（默认跳过并记入 Skipped） |
-| `--yes` / `-y`| 跳过确认提示 |
-
-同步结果落盘：`<pwd>/seeed-cli/skills-sync-YYYY-MM-DD_HH_mm_ss.md`，含「源 → 目标」映射表与 Written / Skipped / Failed 三段清单。
-
-### skills-pull：联网拉取高星 skill
-
-内嵌一份 **Top-50 高星 skill 索引**（来自 `anthropics/skills`、`vercel-labs/agent-skills`、`ComposioHQ/awesome-claude-skills` 等仓库），按需从 GitHub 拉取 SKILL.md 及其 `references/` 与 `scripts/` 子目录，再按目标工具的方言安装到 `.cursor/.claude/.windsurf/.augment` 之一。
-
-**列表 / 搜索**（不下载）：
-
-``` sh
-seeed-cli skills-pull --list
-seeed-cli pull --search pdf --list
-seeed-cli pull --search github --list
-```
-
-**交互模式**（多选远程 skill + 单选目标工具）：
-
-``` sh
-seeed-cli skills-pull
-# 别名
-seeed-cli pull
-```
-
-操作键：`↑/↓` 移动 · `Space` 选/取消 · `a` 全选 · `Enter` 确认 · `q` 取消。
-
-**非交互模式**（CI / 脚本场景）：
-
-``` sh
-seeed-cli pull --ids anthropics/pdf,anthropics/docx --target claude -y --overwrite
-```
-
-| flag | 说明 |
-|------|------|
-| `--search`    | 在 `id` / `name` / `description` / `tags` 中模糊过滤 |
-| `--ids`       | 逗号分隔的 skill id 或 name（缺省进入交互式多选） |
-| `--target`    | 目标工具：`cursor` \| `claude` \| `windsurf` \| `augment` |
-| `--list` / `-l` | 只列出当前匹配的 skill 索引，不下载 |
-| `--overwrite` | 目标文件已存在时是否覆盖 |
-| `--yes` / `-y`| 跳过确认提示 |
-
-下载过程命中 GitHub API 速率限制时，可设置 `GITHUB_TOKEN` 环境变量提升配额；下载产物写入系统临时目录，安装完成后自动清理。安装结果复用 `skills-sync` 的报告：`<pwd>/seeed-cli/skills-sync-YYYY-MM-DD_HH_mm_ss.md`。
+| #  | 功能                                                  | 命令             | 完成 |
+|----|-------------------------------------------------------|------------------|------|
+| 0  | 将 seeed-cli 命令缩短为 s ，这样打命令更快             | `s install-s`    | ✓    |
+| 1  | 项目安全扫描                                          | `s safe-scan`    | ✓    |
+| 2  | 项目代码质量检查                                      | `s quality`      | ✓    |
+| 3  | 项目架构分析                                          | `s frame`        | ✓    |
+| 4  | 项目说明生成(针对AI)，作为 AI 修改本项目的说明书       | `s gen-ai-agent` | ✓    |
+| 5  | 根据提交历史生成日报                                  | `s gen-daily`    | ✓    |
+| 5  | 根据修改文件生成提交的 commit 说明(git commit 的描述) | `s gen-commit`   | ✓    |
+| 6  | 接口文档生成                                          | `s gen-api-doc`  | ✓    |
+| 7  | 代码出处分析                                          | `s who`          | ✓    |
+| 8  | 多端兼容(windows、linux、macos)                         | —                | ✓    |
+| 9  | AI skills/rules/workflows 扫描 + 评分 + 缺口分析      | `s skills-scan`  | ✓    |
+| 10 | 跨工具 skills 同步（生成对应 SKILL.md 文件包）          | `s skills-sync`  | ✓    |
+| 11 | 联网拉取高星 skill（内嵌 Top-50 索引）                  | `s skills-pull`  | ✓    |
+| 12 | 登录持久化用户数据（微信登录、手机号码登录、github 登录） | `s login`        | x    |
+| 13 | 炫酷 ai 聊天                                          | —                | x    |
+| x  | 等你来...                                             | —                | -    |
 
 
 ## 安装
 
 ``` sh 
-curl -fsSL https://raw.githubusercontent.com/wangzongming/seeed-cli/refs/heads/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/wangzongming/seeed-cli/main/install.sh | bash
 ```
   
 ## API Key 配置
@@ -220,3 +130,160 @@ make install
 ![safe-res](./imgs/safe-res.png)
 ![who-res](./imgs/who-res.png)
 
+## 命令使用说明
+
+### set-ak
+
+设置 LLM 的 api-key。
+
+```sh
+seeed-cli set-ak BaiLian <api-key>
+```
+
+### get-ak
+
+查看已设置的 LLM api-key。
+
+```sh
+seeed-cli get-ak BaiLian
+```
+
+### frame / f
+
+项目架构分析。
+
+```sh
+seeed-cli frame
+seeed-cli f
+```
+
+### safe-scan / safe
+
+项目代码安全扫描。
+
+```sh
+seeed-cli safe-scan
+seeed-cli safe
+```
+
+### quality / q
+
+代码质量评测。
+
+```sh
+seeed-cli quality
+seeed-cli q
+```
+
+### gen-commit / commit
+
+根据暂存区生成 commit 说明，执行前先 `git add`。
+
+```sh
+seeed-cli gen-commit
+seeed-cli commit
+```
+
+### gen-daily / daily
+
+根据今日 git 提交记录生成日报。
+
+```sh
+seeed-cli gen-daily
+seeed-cli daily
+```
+
+### gen-ai-agent / agent
+
+扫描当前目录源码，生成 `AI-AGENT.md`。
+
+```sh
+seeed-cli gen-ai-agent
+seeed-cli agent
+```
+
+### gen-api-doc / api
+
+扫描当前目录源码，生成 `API-DOC.md`。
+
+```sh
+seeed-cli gen-api-doc
+seeed-cli api
+```
+
+### who
+
+粗估源码「古法/手写」与「偏 AI 风格」占比。
+
+```sh
+seeed-cli who
+```
+
+### skills-scan / skills / sk
+
+扫描并分析 AI 工具 skills、rules、workflows。
+
+```sh
+seeed-cli skills-scan
+seeed-cli skills
+seeed-cli sk
+```
+
+### skills-sync / sync
+
+跨工具同步本地 skills。
+
+```sh
+seeed-cli skills-sync
+seeed-cli sync
+seeed-cli skills-sync --target claude --skills deploy-staging,api-review --overwrite -y
+```
+
+参数：
+
+| 参数           | 说明                                            |
+|----------------|-------------------------------------------------|
+| `--target`     | 目标工具：`cursor`、`claude`、`windsurf`、`augment` |
+| `--skills`     | 逗号分隔的源 skill 名，缺省进入交互式多选        |
+| `--overwrite`  | 目标文件已存在时覆盖                            |
+| `--yes` / `-y` | 跳过确认提示                                    |
+
+### skills-pull / pull
+
+联网拉取高星 skill，并安装到目标工具目录。
+
+```sh
+seeed-cli skills-pull
+seeed-cli pull
+seeed-cli pull --list
+seeed-cli pull --search pdf --list
+seeed-cli pull --ids anthropics/pdf,anthropics/docx --target claude -y --overwrite
+```
+
+参数：
+
+| 参数            | 说明                                            |
+|-----------------|-------------------------------------------------|
+| `--search`      | 在 id、name、description、tags 中模糊过滤          |
+| `--ids`         | 逗号分隔的 skill id 或 name，缺省进入交互式多选  |
+| `--target`      | 目标工具：`cursor`、`claude`、`windsurf`、`augment` |
+| `--list` / `-l` | 只列出当前匹配的 skill 索引，不下载              |
+| `--overwrite`   | 目标文件已存在时覆盖                            |
+| `--yes` / `-y`  | 跳过确认提示                                    |
+
+### clear
+
+清除所有配置。
+
+```sh
+seeed-cli clear
+```
+
+### install-s
+
+创建简短命令 `s`。
+
+```sh
+seeed-cli install-s
+s -h
+```
